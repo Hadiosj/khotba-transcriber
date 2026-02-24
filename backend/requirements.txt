@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+groq
+google-generativeai
+yt-dlp
+sqlalchemy
+aiofiles
+python-multipart
+httpx
