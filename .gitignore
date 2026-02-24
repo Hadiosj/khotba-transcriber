@@ -7,7 +7,6 @@ backend/analyses.db
 
 # Temp files and generated files
 backend/tmp/*
-!backend/tmp/.gitkeep
 backend/logs/*
 !backend/logs/.gitkeep
 backend/videos/*
@@ -35,3 +34,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+
+DEPLOYMENT.md
+SETUP.md

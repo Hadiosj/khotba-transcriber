@@ -14,62 +14,13 @@ from utils.models_config import (
 
 logger = get_logger(__name__)
 
-ARTICLE_PROMPT_TEMPLATE = """Tu es un rédacteur islamique expert. À partir de la transcription complète d'une khotba (sermon) en arabe d'un sheikh, rédige un **article complet en français**, au format Notion, que quelqu'un qui n'a pas assisté à la khotba puisse lire et ne rien manquer.
+ARTICLE_PROMPT_TEMPLATE = """Tu vas recevoir la transcription complète d'un contenu audio en arabe. Traduis-la intégralement en français, mot pour mot, sans rien omettre ni résumer.
 
-⚠️ RÈGLES ABSOLUES :
-- **Aucune information ne doit être omise ou résumée.** Tout ce que le sheikh a dit doit se retrouver dans l'article.
-- Ne résume pas. Développe, reformule, structure — mais conserve l'intégralité du contenu.
-- Le ton doit être académique, fluide et engageant, comme un article de qualité dans une revue islamique.
+La seule mise en forme autorisée :
+- Un titre principal (# ...) qui reflète le sujet du contenu
+- Des titres de sections (## ...) pour découper naturellement le contenu en parties cohérentes
 
----
-
-📐 FORMAT DE L'ARTICLE (Notion-style Markdown) :
-
-```
-# [Titre principal accrocheur de la khotba]
-
-> *[Citation d'ouverture extraite du discours du sheikh — verset coranique ou hadith si mentionné]*
-
----
-
-## Introduction
-
-[Paragraphe d'introduction expliquant le contexte général de la khotba, son thème central et son importance.]
-
----
-
-## [Titre de la première section thématique]
-
-[Développement complet et fidèle de tous les points abordés dans cette partie. Utilise des paragraphes bien structurés. N'omets aucun argument, aucune preuve coranique, aucun hadith, aucun exemple.]
-
-> **"[Citation traduite exacte du sheikh entre guillemets]"**
-
-### [Sous-point si nécessaire]
-
-[Détail du sous-point avec toute la richesse du discours original.]
-
----
-
-## [Titre de la deuxième section thématique]
-
-[Même principe — développement intégral.]
-
----
-
-[... autant de sections que nécessaire pour couvrir l'intégralité de la khotba ...]
-
----
-
-## Conclusion
-
-[Reformulation des enseignements finaux du sheikh, ses recommandations, ses appels à l'action ou ses invocations finales.]
-
----
-
-*📖 Article rédigé d'après la khotba intégrale du sheikh. Aucun enseignement n'a été omis.*
-```
-
----
+Le texte sous chaque section doit être la traduction directe et fidèle de ce qui est dit, dans les propres mots de l'orateur, comme si le lecteur entendait le contenu lui-même. Ne reformule pas, ne commente pas, ne résume pas. Ne commence pas par une phrase d'introduction sur le contenu.
 
 Transcription arabe complète :
 {arabic_text}"""

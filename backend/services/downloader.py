@@ -2,10 +2,9 @@ import subprocess
 import json
 import re
 import time
-# import glob as _glob
 
 from utils.logger import get_logger
-from utils.file_manager import tmp_path, safe_remove
+from utils.file_manager import tmp_path
 
 logger = get_logger(__name__)
 
@@ -118,57 +117,3 @@ def extract_audio(url: str, start: int, end: int) -> str:
     elapsed = time.perf_counter() - t0
     logger.info(f"Audio extracted (m4a) in {elapsed:.2f}s")
     return out_path
-
-
-# def extract_audio(url: str, start: int, end: int) -> str:
-#     """Download the audio segment in its native format (m4a or webm) using
-#     yt-dlp's --download-sections. No FFmpeg required — Groq accepts both formats."""
-#     logger.info(f"Extracting audio: start={start}s end={end}s")
-#     t0 = time.perf_counter()
-
-#     base = tmp_path()  # path without extension; yt-dlp appends it
-
-#     section = f"*{_fmt(start)}-{_fmt(end)}"
-#     cmd = [
-#         "yt-dlp",
-#         "--no-playlist",
-#         "--download-sections",
-#         section,
-#         "--concurrent-fragments",
-#         "5",
-#         # Prefer m4a (AAC), fall back to webm/opus — both accepted by Groq Whisper
-#         "-f",
-#         "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
-#         "-o",
-#         f"{base}.%(ext)s",
-#         url,
-#     ]
-
-#     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-
-#     if result.returncode != 0:
-#         err = (
-#             result.stderr.strip().splitlines()[-1]
-#             if result.stderr.strip()
-#             else "Unknown yt-dlp error"
-#         )
-#         logger.error(f"yt-dlp audio extraction failed: {err}")
-#         raise RuntimeError(f"yt-dlp error: {err}")
-
-#     matches = _glob.glob(f"{base}.*")
-#     if not matches:
-#         raise RuntimeError("yt-dlp produced no output file")
-
-#     out_path = matches[0]
-#     elapsed = time.perf_counter() - t0
-#     logger.info(f"Audio extracted ({out_path.rsplit('.', 1)[-1]}) in {elapsed:.2f}s")
-#     return out_path
-
-
-# def _fmt(seconds: int) -> str:
-#     h = seconds // 3600
-#     m = (seconds % 3600) // 60
-#     s = seconds % 60
-#     if h:
-#         return f"{h:02d}:{m:02d}:{s:02d}"
-#     return f"{m:02d}:{s:02d}"

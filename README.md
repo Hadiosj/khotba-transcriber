@@ -1,6 +1,6 @@
-# Khotba Transcriber
+# Arabic Video Transcriber
 
-A full-stack web application for Arabic lecture (khotba) transcription and translation. Paste a YouTube URL, select a time range, preview the clip, and get a full Arabic transcription, French translation, and a structured French article — all powered by Groq Whisper and Google Gemini.
+A full-stack web application for Arabic video transcription and translation. Paste a YouTube URL, select a time range, preview the clip, and get a full Arabic transcription, French translation, and a structured French article — all powered by Groq Whisper and Google Gemini.
 
 ---
 
@@ -157,12 +157,6 @@ Log format:
 | Translation + Article | `gemini-2.5-flash` and `gemini-3-flash-preview` (Google) |
 
 Model names are defined in `backend/utils/models_config.py` for easy updates.
-
----
-
-## Deploying to Production
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for a complete step-by-step guide to deploy this app on a VPS using Docker Compose — the easiest and cheapest option.
 
 ---
 

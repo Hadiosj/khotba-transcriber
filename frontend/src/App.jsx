@@ -188,8 +188,8 @@ export default function App() {
       <header className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-indigo-600">Khotba Transcriber</h1>
-            <p className="text-sm text-gray-500">Transcription et traduction de conférences islamiques</p>
+            <h1 className="text-2xl font-bold text-indigo-600">Transcripteur Vidéo</h1>
+            <p className="text-sm text-gray-500">Transcription et traduction de vidéos arabes en français</p>
           </div>
           <button
             onClick={() => setHistoryOpen(true)}
