@@ -1,6 +1,7 @@
 # Secrets
 backend/.env
 frontend/.env
+backend/youtube-cookies.txt
 
 # Database
 backend/analyses.db

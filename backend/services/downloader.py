@@ -1,3 +1,4 @@
+import os
 import subprocess
 import json
 import re
@@ -7,6 +8,14 @@ from utils.logger import get_logger
 from utils.file_manager import tmp_path
 
 logger = get_logger(__name__)
+
+_COOKIES_FILE = os.environ.get("YOUTUBE_COOKIES_FILE", "")
+
+
+def _cookies_args() -> list[str]:
+    if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
+        return ["--cookies", _COOKIES_FILE]
+    return []
 
 YOUTUBE_URL_RE = re.compile(
     r"^(https?://)?(www\.)?"
@@ -28,6 +37,7 @@ def get_video_info(url: str) -> dict:
         "--dump-json",
         "--no-playlist",
         "--skip-download",
+        *_cookies_args(),
         url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -70,6 +80,7 @@ def extract_audio(url: str, start: int, end: int) -> str:
         "-f",
         "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
         "--get-url",
+        *_cookies_args(),
         url,
     ]
     url_result = subprocess.run(url_cmd, capture_output=True, text=True, timeout=30)
