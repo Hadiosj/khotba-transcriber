@@ -6,9 +6,10 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install system dependencies (ffmpeg with libass for subtitle burning, Noto fonts for Arabic)
+# Install system dependencies (ffmpeg, Node.js for yt-dlp JS runtime, Noto fonts for Arabic)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    nodejs \
     fonts-noto-core \
     fonts-noto-extra \
     && rm -rf /var/lib/apt/lists/*
