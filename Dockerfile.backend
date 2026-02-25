@@ -19,8 +19,8 @@ RUN pip install --no-cache-dir yt-dlp
 # Copy backend source
 COPY backend/ .
 
-# Create runtime directories
-RUN mkdir -p tmp logs videos
+# Create runtime directories and ensure the SQLite database file exists
+RUN mkdir -p tmp logs videos && touch analyses.db
 
 EXPOSE 8000
 
