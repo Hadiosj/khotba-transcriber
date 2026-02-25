@@ -17,6 +17,7 @@ def _cookies_args() -> list[str]:
         return ["--cookies", _COOKIES_FILE]
     return []
 
+
 YOUTUBE_URL_RE = re.compile(
     r"^(https?://)?(www\.)?"
     r"(youtube\.com/(watch\?v=|shorts/|embed/|live/)|youtu\.be/)"

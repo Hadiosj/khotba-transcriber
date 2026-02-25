@@ -12,7 +12,7 @@ services:
     volumes:
       - ./backend/logs:/app/logs
       - ./backend/analyses.db:/app/analyses.db
-      - ./backend/youtube-cookies.txt:/app/youtube-cookies.txt:ro
+      - ./backend/youtube-cookies.txt:/app/youtube-cookies.txt
     restart: unless-stopped
 
   frontend:

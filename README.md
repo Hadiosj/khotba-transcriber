@@ -4,39 +4,20 @@ A full-stack web application for Arabic video transcription and translation. Pas
 
 ---
 
-## Features
+## Dependencies
 
-- **YouTube clip extraction** — select any time range up to 30 minutes
-- **Arabic transcription** — via Groq's `whisper-large-v3-turbo` with timestamped segments
-- **French translation** — segment-by-segment via Gemini 2.5/3 Flash
-- **Structured French article** — auto-generated with sections, headings, and citations
-- **History panel** — browse and reload past analyses without reprocessing
-- **RTL support** — Noto Naskh Arabic font for transcription display
-- **Persistent storage** — SQLite (swappable to PostgreSQL with zero code changes)
-- **Rotating logs** — structured log file, max 5MB × 3 files
-
----
-
-## Prerequisites
-
-| Tool | Version | Notes |
-|------|---------|-------|
-| Python | 3.12+ | Backend runtime |
-| Node.js | 20+ | Frontend build |
-| FFmpeg | any recent | Must be in PATH |
-| yt-dlp | latest | Installed via pip |
-| Docker + Compose | optional | For containerized setup |
-
-### Install FFmpeg
-
+**FFmpeg** — must be in PATH:
 ```bash
 # Ubuntu/Debian
 sudo apt install ffmpeg
 
 # macOS
 brew install ffmpeg
+```
 
-# Windows — download from https://ffmpeg.org/download.html and add to PATH
+**yt-dlp:**
+```bash
+pip install yt-dlp
 ```
 
 ---
@@ -45,41 +26,25 @@ brew install ffmpeg
 
 ### Groq API Key (free tier available)
 1. Go to [https://console.groq.com](https://console.groq.com)
-2. Sign up / log in
-3. Navigate to **API Keys** → **Create API Key**
-4. Copy your key (starts with `gsk_...`)
+2. Navigate to **API Keys** → **Create API Key**
+3. Copy your key (starts with `gsk_...`)
 
 ### Google Gemini API Key (free tier available)
 1. Go to [https://aistudio.google.com](https://aistudio.google.com)
-2. Sign in with a Google account
-3. Click **Get API Key** → **Create API Key**
-4. Copy your key
+2. Click **Get API Key** → **Create API Key**
 
 ---
 
 ## Local Setup (Manual)
 
-### 1. Clone and configure
-
 ```bash
 git clone <your-repo-url>
 cd khotba-transcriber
-
-# Backend .env
 cp backend/.env.example backend/.env
-# Edit backend/.env and fill in your API keys
+# Fill in your API keys in backend/.env
 ```
 
-Your `backend/.env` should look like:
-```env
-GROQ_API_KEY=gsk_your_key_here
-GEMINI_API_KEY=your_gemini_key_here
-DATABASE_URL=sqlite:///./analyses.db
-ALLOWED_ORIGIN=http://localhost:5173
-```
-
-### 2. Backend
-
+**Backend:**
 ```bash
 cd backend
 python -m venv .venv
@@ -88,48 +53,35 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-Backend runs at `http://localhost:8000`.
-API docs: `http://localhost:8000/docs`
-
-### 3. Frontend
-
+**Frontend:**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Frontend runs at `http://localhost:5173`.
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000` — API docs: `/docs`
 
 ---
 
 ## Local Setup (Docker)
 
 ```bash
-# Edit backend/.env first (see above)
+# Fill in backend/.env first
 docker compose up --build
 ```
-
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8000`
-
-Logs and the SQLite database are mounted as volumes so data persists across restarts.
 
 ---
 
 ## Viewing Logs
 
 ```bash
-# Tail live logs
+# File
 tail -f backend/logs/app.log
 
-# Or with Docker
+# Docker
 docker compose logs -f backend
-```
-
-Log format:
-```
-[2025-06-01 14:32:10] INFO | downloader.py | Video info fetched: "Title" (duration: 3420s) in 1.23s
 ```
 
 ---
@@ -149,33 +101,19 @@ Log format:
 
 ---
 
-## Models Used
+## YouTube Cookies (deployed server)
 
-| Task | Model |
-|------|-------|
-| Transcription | `whisper-large-v3-turbo` (Groq) |
-| Translation + Article | `gemini-2.5-flash` and `gemini-3-flash-preview` (Google) |
+YouTube blocks yt-dlp on server/datacenter IPs. Fix: provide a cookies file from a logged-in YouTube session.
 
-Model names are defined in `backend/utils/models_config.py` for easy updates.
+**One-time setup:**
 
----
+1. Install the **"Get cookies.txt LOCALLY"** browser extension ([Chrome](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) / [Firefox](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/))
+2. Go to youtube.com (logged in) → click the extension → **Export** → save as `cookies.txt`
+3. Upload to the server as `backend/youtube-cookies.txt`
+4. Add to `backend/.env` on the server:
+   ```
+   YOUTUBE_COOKIES_FILE=/app/youtube-cookies.txt
+   ```
+5. Restart: `docker compose up -d`
 
-## Troubleshooting
-
-**`yt-dlp: command not found`**
-```bash
-pip install yt-dlp
-# or upgrade: pip install -U yt-dlp
-```
-
-**`ffmpeg: command not found`**
-Install FFmpeg and ensure it's in your PATH.
-
-**`GROQ_API_KEY is not set`**
-Check that `backend/.env` exists and has the correct key.
-
-**Clip download is slow**
-yt-dlp downloads only the selected segment. Large segments or slow connections will take longer.
-
-**Rate limit errors from Groq/Gemini**
-Both offer generous free tiers. If you hit limits, wait a moment and retry.
+**Refresh:** cookies expire in ~1–2 weeks. Repeat steps 2–3 and restart when you start getting bot errors again.
