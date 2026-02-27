@@ -3,7 +3,7 @@ import asyncio
 import time
 import json
 
-import google.generativeai as genai
+from google import genai
 
 from utils.logger import get_logger
 from utils.models_config import (
@@ -38,12 +38,11 @@ Texte arabe:
 {arabic_text}"""
 
 
-def _get_client(model: str = GEMINI_MODEL):
+def _get_client():
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set")
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(model)
+    return genai.Client(api_key=api_key)
 
 
 def _extract_usage(response) -> dict:
@@ -64,28 +63,22 @@ def _gemini_cost(usage: dict, input_cost_per_m: float, output_cost_per_m: float)
     ) / 1_000_000
 
 
-async def _call_gemini(model, prompt: str) -> tuple[str, dict]:
+async def _call_gemini(client, model: str, prompt: str) -> tuple[str, dict]:
     loop = asyncio.get_running_loop()
     response = await loop.run_in_executor(
-        None, lambda: model.generate_content(prompt)
+        None, lambda: client.models.generate_content(model=model, contents=prompt)
     )
     return response.text, _extract_usage(response)
 
 
-async def translate_and_summarize(
+async def translate_segments(
     segments: list[dict], arabic_text: str, include_timestamps: bool = True
 ) -> dict:
-    """Run translation and article generation in parallel via Gemini.
-    When include_timestamps is False, translates the full text directly instead of segment-by-segment."""
-    logger.info(f"Starting translation and article generation with Gemini (timestamps: {include_timestamps})")
+    """Translate Arabic segments/text to French using Gemini."""
+    logger.info(f"Starting translation with Gemini (timestamps: {include_timestamps})")
     t0 = time.perf_counter()
 
-    translation_model = _get_client(GEMINI_MODEL)
-    article_model = _get_client(GEMINI_ARTICLE_MODEL)
-
-    article_prompt = ARTICLE_PROMPT_TEMPLATE.format(arabic_text=arabic_text)
-
-    t_trans = time.perf_counter()
+    client = _get_client()
 
     if include_timestamps:
         segments_json = json.dumps(segments, ensure_ascii=False)
@@ -93,15 +86,7 @@ async def translate_and_summarize(
     else:
         translation_prompt = PLAIN_TRANSLATION_PROMPT_TEMPLATE.format(arabic_text=arabic_text)
 
-    translation_task = asyncio.create_task(_call_gemini(translation_model, translation_prompt))
-    article_task = asyncio.create_task(_call_gemini(article_model, article_prompt))
-
-    (translation_raw, translation_usage), (article_raw, article_usage) = await asyncio.gather(
-        translation_task, article_task
-    )
-
-    t_trans_elapsed = time.perf_counter() - t_trans
-    logger.info(f"Translation and article generation completed in {t_trans_elapsed:.2f}s")
+    translation_raw, translation_usage = await _call_gemini(client, GEMINI_MODEL, translation_prompt)
 
     if include_timestamps:
         translated_segments = _parse_segments(translation_raw, segments)
@@ -111,24 +96,46 @@ async def translate_and_summarize(
         french_text = translation_raw.strip()
 
     translation_cost = _gemini_cost(translation_usage, GEMINI_FLASH_INPUT_COST_PER_M, GEMINI_FLASH_OUTPUT_COST_PER_M)
-    article_cost = _gemini_cost(article_usage, GEMINI_ARTICLE_INPUT_COST_PER_M, GEMINI_ARTICLE_OUTPUT_COST_PER_M)
 
     elapsed = time.perf_counter() - t0
     logger.info(
-        f"Full translation pipeline completed in {elapsed:.2f}s — "
-        f"translation: {translation_usage['input_tokens']}in/{translation_usage['output_tokens']}out tokens "
-        f"(${translation_cost:.5f}), article: {article_usage['input_tokens']}in/{article_usage['output_tokens']}out "
-        f"tokens (${article_cost:.5f})"
+        f"Translation completed in {elapsed:.2f}s — "
+        f"{translation_usage['input_tokens']}in/{translation_usage['output_tokens']}out tokens "
+        f"(${translation_cost:.5f})"
     )
 
     return {
         "french_text": french_text,
-        "article_markdown": article_raw.strip(),
         "translated_segments": translated_segments,
         "gemini_costs": {
             "translation_input_tokens": translation_usage["input_tokens"],
             "translation_output_tokens": translation_usage["output_tokens"],
             "translation_cost_usd": round(translation_cost, 6),
+        },
+    }
+
+
+async def generate_article(arabic_text: str) -> dict:
+    """Generate a French article from Arabic text using Gemini."""
+    logger.info("Starting article generation with Gemini")
+    t0 = time.perf_counter()
+
+    client = _get_client()
+    article_prompt = ARTICLE_PROMPT_TEMPLATE.format(arabic_text=arabic_text)
+    article_raw, article_usage = await _call_gemini(client, GEMINI_ARTICLE_MODEL, article_prompt)
+
+    article_cost = _gemini_cost(article_usage, GEMINI_ARTICLE_INPUT_COST_PER_M, GEMINI_ARTICLE_OUTPUT_COST_PER_M)
+
+    elapsed = time.perf_counter() - t0
+    logger.info(
+        f"Article generation completed in {elapsed:.2f}s — "
+        f"{article_usage['input_tokens']}in/{article_usage['output_tokens']}out tokens "
+        f"(${article_cost:.5f})"
+    )
+
+    return {
+        "article_markdown": article_raw.strip(),
+        "costs": {
             "article_input_tokens": article_usage["input_tokens"],
             "article_output_tokens": article_usage["output_tokens"],
             "article_cost_usd": round(article_cost, 6),

@@ -18,7 +18,6 @@ const PIPELINE_STEPS = [
   { id: 'extract', label: 'Extraction audio' },
   { id: 'whisper', label: 'Transcription Whisper' },
   { id: 'translate', label: 'Traduction en français' },
-  { id: 'article', label: 'Génération article' },
 ]
 
 function formatDuration(ms) {
@@ -125,25 +124,14 @@ export default function App() {
 
       const translateDuration = Date.now() - translateStart
 
-      setProcessingSteps(prev => prev.map(s => {
-        if (s.id === 'translate') return { ...s, status: 'done', duration: translateDuration, cost: null }
-        if (s.id === 'article') return { ...s, status: 'active' }
-        return s
-      }))
-      const articleStart = Date.now()
       const translateData = await translateRes.json()
-      const articleDuration = Date.now() - articleStart
 
       setProcessingSteps(prev => prev.map(s => {
         if (s.id === 'translate') return {
           ...s,
-          cost: translateData.costs?.translation_cost_usd ?? null,
-        }
-        if (s.id === 'article') return {
-          ...s,
           status: 'done',
-          duration: articleDuration,
-          cost: translateData.costs?.article_cost_usd ?? null,
+          duration: translateDuration,
+          cost: translateData.costs?.translation_cost_usd ?? null,
         }
         return s
       }))
@@ -153,7 +141,7 @@ export default function App() {
         arabicText: transcribeData.full_text,
         frenchSegments: translateData.translated_segments,
         frenchText: translateData.french_text,
-        articleMarkdown: translateData.article_markdown,
+        articleMarkdown: null,
         analysisId: translateData.analysis_id,
         includeTimestamps,
         costs: translateData.costs ?? null,
@@ -204,7 +192,12 @@ export default function App() {
       <header className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-indigo-600">Transcripteur Vidéo</h1>
+            <h1
+              className="text-2xl font-bold text-indigo-600 cursor-pointer hover:text-indigo-500 transition-colors"
+              onClick={handleReset}
+            >
+              Transcripteur Vidéo
+            </h1>
             <p className="text-sm text-gray-500">Transcription et traduction de vidéos arabes en français</p>
           </div>
           <button

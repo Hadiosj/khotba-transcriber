@@ -1,10 +1,16 @@
+import glob
 import json
+import os
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.db import get_db
-from database.crud import get_analyses, get_analysis, delete_analysis
+from database.crud import get_analyses, get_analysis, delete_analysis, update_analysis
+from services.translator import translate_segments
+from utils.file_manager import VIDEOS_DIR
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -98,6 +104,119 @@ async def get_history_item(analysis_id: str, db: Session = Depends(get_db)):
         "processing_time_seconds": record.processing_time_seconds,
         "costs": costs,
     }
+
+
+class SegmentUpdate(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
+class UpdateAnalysisRequest(BaseModel):
+    arabic_segments: Optional[list[SegmentUpdate]] = None
+    french_segments: Optional[list[SegmentUpdate]] = None
+    arabic_text: Optional[str] = None
+    french_text: Optional[str] = None
+
+
+def _invalidate_video_cache(analysis_id: str, lang: str = "*"):
+    """Delete cached subtitle video files for an analysis."""
+    pattern = os.path.join(VIDEOS_DIR, f"{analysis_id}_{lang}.mp4")
+    for path in glob.glob(pattern):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+@router.patch("/history/{analysis_id}")
+async def update_history_item(
+    analysis_id: str, body: UpdateAnalysisRequest, db: Session = Depends(get_db)
+):
+    record = get_analysis(db, analysis_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    new_segments_json = None
+    new_french_text = None
+    new_french_segments = None
+
+    if body.arabic_segments is not None or body.french_segments is not None:
+        existing = {}
+        if record.segments_json:
+            try:
+                existing = json.loads(record.segments_json)
+            except json.JSONDecodeError:
+                pass
+        if body.arabic_segments is not None:
+            existing["arabic"] = [
+                {"start": s.start, "end": s.end, "text": s.text}
+                for s in body.arabic_segments
+            ]
+        if body.french_segments is not None:
+            existing["french"] = [
+                {"start": s.start, "end": s.end, "text": s.text}
+                for s in body.french_segments
+            ]
+        new_segments_json = json.dumps(existing, ensure_ascii=False)
+
+    # When Arabic segments are updated: retranslate to get new French segments
+    if body.arabic_segments is not None:
+        try:
+            arabic_segs = [
+                {"start": s.start, "end": s.end, "text": s.text}
+                for s in body.arabic_segments
+            ]
+            arabic_text = " ".join(s.text for s in body.arabic_segments)
+            trans = await translate_segments(
+                segments=arabic_segs,
+                arabic_text=arabic_text,
+                include_timestamps=True,
+            )
+            new_french_segments = trans["translated_segments"]
+            segs = json.loads(new_segments_json)
+            segs["french"] = new_french_segments
+            new_segments_json = json.dumps(segs, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Retranslation failed: {e}")
+            raise HTTPException(status_code=500, detail="Retranslation failed")
+        # Invalidate both video caches since content changed
+        _invalidate_video_cache(analysis_id)
+
+    # When Arabic full-text is updated (no-timestamps mode): retranslate
+    elif body.arabic_text is not None:
+        try:
+            trans = await translate_segments(
+                segments=[],
+                arabic_text=body.arabic_text,
+                include_timestamps=False,
+            )
+            new_french_text = trans["french_text"]
+        except Exception as e:
+            logger.error(f"Retranslation failed: {e}")
+            raise HTTPException(status_code=500, detail="Retranslation failed")
+
+    # When French segments/text are updated: invalidate French video cache
+    if body.french_segments is not None:
+        _invalidate_video_cache(analysis_id, "french")
+
+    updated = update_analysis(
+        db,
+        analysis_id,
+        arabic_text=body.arabic_text,
+        french_text=new_french_text if new_french_text is not None else body.french_text,
+        segments_json=new_segments_json,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    logger.info(f"Updated analysis id={analysis_id}")
+    response: dict = {"success": True}
+    if new_french_text is not None:
+        response["french_text"] = new_french_text
+    if new_french_segments is not None:
+        response["french_segments"] = new_french_segments
+    return response
 
 
 @router.delete("/history/{analysis_id}")

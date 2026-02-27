@@ -1,5 +1,4 @@
 import json
-import os
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import FileResponse
@@ -51,37 +50,34 @@ async def generate_subtitled_video(
 
     out_path = get_video_path(analysis_id, lang)
 
-    if not os.path.exists(out_path):
-        logger.info(f"Cache miss — generating subtitled video for {analysis_id} lang={lang}")
+    logger.info(f"Generating subtitled video for {analysis_id} lang={lang}")
 
-        # Resolve video source: local upload or YouTube
-        video_source_path = ""
-        if record.upload_id:
-            video_source_path = find_upload_file(record.upload_id) or ""
-            if not video_source_path:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Uploaded video file not found. It may have been deleted.",
-                )
-
-        try:
-            burn_subtitles(
-                start=record.start_seconds,
-                end=record.end_seconds,
-                segments=segments,
-                analysis_id=analysis_id,
-                lang=lang,
-                youtube_url=record.youtube_url or "",
-                video_source_path=video_source_path,
-            )
-        except Exception as exc:
-            logger.error(f"Subtitle video generation failed: {exc}")
+    # Resolve video source: local upload or YouTube
+    video_source_path = ""
+    if record.upload_id:
+        video_source_path = find_upload_file(record.upload_id) or ""
+        if not video_source_path:
             raise HTTPException(
-                status_code=500,
-                detail=f"Video generation failed: {exc}",
+                status_code=404,
+                detail="Uploaded video file not found. It may have been deleted.",
             )
-    else:
-        logger.info(f"Cache hit — serving existing video for {analysis_id} lang={lang}")
+
+    try:
+        burn_subtitles(
+            start=record.start_seconds,
+            end=record.end_seconds,
+            segments=segments,
+            analysis_id=analysis_id,
+            lang=lang,
+            youtube_url=record.youtube_url or "",
+            video_source_path=video_source_path,
+        )
+    except Exception as exc:
+        logger.error(f"Subtitle video generation failed: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Video generation failed: {exc}",
+        )
 
     lang_label = "arabe" if lang == "arabic" else "francais"
     filename = f"khotba-{lang_label}-{analysis_id[:8]}.mp4"

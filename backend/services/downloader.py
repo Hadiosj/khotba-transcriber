@@ -141,6 +141,13 @@ def get_video_info(url: str) -> dict:
     }
 
 
+def _best_ffmpeg_error(stderr: str) -> str:
+    """Return the most informative non-repetition line from FFmpeg stderr."""
+    lines = [l.strip() for l in stderr.strip().splitlines() if l.strip()]
+    meaningful = [l for l in lines if not l.lower().startswith("last message repeated")]
+    return meaningful[-1] if meaningful else (lines[-1] if lines else "Unknown FFmpeg error")
+
+
 def extract_audio_from_local(file_path: str, start: int, end: int) -> str:
     """Extract an audio segment from a local video file using FFmpeg."""
     logger.info(f"Extracting audio from local file: [{start}s - {end}s]")
@@ -172,11 +179,7 @@ def extract_audio_from_local(file_path: str, start: int, end: int) -> str:
         ]
         result2 = subprocess.run(ffmpeg_cmd2, capture_output=True, text=True, timeout=900)
         if result2.returncode != 0:
-            err = (
-                result2.stderr.strip().splitlines()[-1]
-                if result2.stderr.strip()
-                else "Unknown FFmpeg error"
-            )
+            err = _best_ffmpeg_error(result2.stderr)
             raise RuntimeError(f"FFmpeg error: {err}")
         out_path = out_path2
 
@@ -199,32 +202,45 @@ def extract_audio(url: str, start: int, end: int) -> str:
         stream_url = _get_stream_url_invidious(url)
         logger.info("Using Invidious stream URL")
 
-    out_path = f"{tmp_path()}.m4a"
-    ffmpeg_cmd = [
-        "ffmpeg",
-        "-ss",
-        str(start),
-        "-to",
-        str(end),
-        "-i",
-        stream_url,
-        "-c",
-        "copy",
-        "-y",
-        out_path,
+    common_headers = [
+        "-headers", "User-Agent: Mozilla/5.0\r\nReferer: https://www.youtube.com/\r\n",
     ]
+
+    # First attempt: stream-copy (fast, works for AAC streams)
+    out_path = f"{tmp_path()}.m4a"
     ffmpeg_result = subprocess.run(
-        ffmpeg_cmd, capture_output=True, text=True, timeout=900
+        [
+            "ffmpeg",
+            "-ss", str(start), "-to", str(end),
+            *common_headers,
+            "-i", stream_url,
+            "-vn", "-c", "copy",
+            "-y", out_path,
+        ],
+        capture_output=True, text=True, timeout=900,
     )
 
     if ffmpeg_result.returncode != 0:
-        err = (
-            ffmpeg_result.stderr.strip().splitlines()[-1]
-            if ffmpeg_result.stderr.strip()
-            else "Unknown FFmpeg error"
+        # Stream-copy failed (e.g. Opus/WebM can't go into .m4a) — re-encode to AAC
+        logger.warning(f"Stream-copy failed, retrying with AAC re-encode: {_best_ffmpeg_error(ffmpeg_result.stderr)}")
+        out_path2 = f"{tmp_path()}.m4a"
+        ffmpeg_result2 = subprocess.run(
+            [
+                "ffmpeg",
+                "-ss", str(start), "-to", str(end),
+                *common_headers,
+                "-i", stream_url,
+                "-vn", "-c:a", "aac",
+                "-y", out_path2,
+            ],
+            capture_output=True, text=True, timeout=900,
         )
-        logger.error(f"FFmpeg extraction failed: {err}")
-        raise RuntimeError(f"FFmpeg error: {err}")
+        if ffmpeg_result2.returncode != 0:
+            err = _best_ffmpeg_error(ffmpeg_result2.stderr)
+            logger.error(f"FFmpeg extraction failed: {err}")
+            logger.debug(f"FFmpeg full stderr:\n{ffmpeg_result2.stderr}")
+            raise RuntimeError(f"FFmpeg error: {err}")
+        out_path = out_path2
 
     elapsed = time.perf_counter() - t0
     logger.info(f"Audio extracted (m4a) in {elapsed:.2f}s")

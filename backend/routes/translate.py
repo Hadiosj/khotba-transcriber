@@ -6,9 +6,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from services.translator import translate_and_summarize
+from services.translator import translate_segments, generate_article
 from database.db import get_db
-from database.crud import create_analysis
+from database.crud import create_analysis, update_analysis
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -44,7 +44,7 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
     t0 = time.perf_counter()
 
     try:
-        result = await translate_and_summarize(
+        result = await translate_segments(
             segments=[s.model_dump() for s in body.segments],
             arabic_text=body.arabic_text,
             include_timestamps=body.include_timestamps,
@@ -54,7 +54,7 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
         logger.error(f"Translation failed: {msg}")
         if "GEMINI_API_KEY" in msg:
             raise HTTPException(status_code=500, detail="Gemini API key is not configured")
-        raise HTTPException(status_code=500, detail="Translation or article generation failed")
+        raise HTTPException(status_code=500, detail="Translation failed")
     except Exception as e:
         logger.error(f"Unexpected translation error: {type(e).__name__}: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Translation failed unexpectedly")
@@ -62,12 +62,9 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
     total_elapsed = time.perf_counter() - t0
     logger.info(f"Translation completed in {total_elapsed:.2f}s")
 
-    # Assemble full cost breakdown
     gc = result.get("gemini_costs", {})
     total_cost = round(
-        body.whisper_cost_usd
-        + gc.get("translation_cost_usd", 0.0)
-        + gc.get("article_cost_usd", 0.0),
+        body.whisper_cost_usd + gc.get("translation_cost_usd", 0.0),
         6,
     )
     costs = {
@@ -76,13 +73,9 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
         "translation_input_tokens": gc.get("translation_input_tokens", 0),
         "translation_output_tokens": gc.get("translation_output_tokens", 0),
         "translation_cost_usd": gc.get("translation_cost_usd", 0.0),
-        "article_input_tokens": gc.get("article_input_tokens", 0),
-        "article_output_tokens": gc.get("article_output_tokens", 0),
-        "article_cost_usd": gc.get("article_cost_usd", 0.0),
         "total_cost_usd": total_cost,
     }
 
-    # Best-effort DB save — errors should not fail the response
     analysis_id = None
     try:
         record = create_analysis(
@@ -94,7 +87,7 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
             end_seconds=body.end_seconds,
             arabic_text=body.arabic_text,
             french_text=result["french_text"],
-            article_markdown=result["article_markdown"],
+            article_markdown="",
             segments_json=json.dumps(
                 {
                     "arabic": [s.model_dump() for s in body.segments],
@@ -115,8 +108,41 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
 
     return {
         "french_text": result["french_text"],
-        "article_markdown": result["article_markdown"],
         "translated_segments": result["translated_segments"],
         "analysis_id": analysis_id,
         "costs": costs,
+    }
+
+
+class GenerateArticleRequest(BaseModel):
+    arabic_text: str
+    analysis_id: str | None = None
+
+
+@router.post("/generate-article")
+async def generate_article_endpoint(body: GenerateArticleRequest, db: Session = Depends(get_db)):
+    logger.info("Article generation requested")
+
+    try:
+        result = await generate_article(body.arabic_text)
+    except RuntimeError as e:
+        msg = str(e)
+        logger.error(f"Article generation failed: {msg}")
+        if "GEMINI_API_KEY" in msg:
+            raise HTTPException(status_code=500, detail="Gemini API key is not configured")
+        raise HTTPException(status_code=500, detail="Article generation failed")
+    except Exception as e:
+        logger.error(f"Unexpected article error: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Article generation failed unexpectedly")
+
+    if body.analysis_id:
+        try:
+            update_analysis(db, body.analysis_id, article_markdown=result["article_markdown"])
+            logger.info(f"Article saved to analysis id={body.analysis_id}")
+        except Exception as e:
+            logger.error(f"DB article save failed (non-fatal): {type(e).__name__}: {e}")
+
+    return {
+        "article_markdown": result["article_markdown"],
+        "costs": result["costs"],
     }

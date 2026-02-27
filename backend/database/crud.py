@@ -62,6 +62,30 @@ def get_analysis(db: Session, analysis_id: str) -> Optional[Analysis]:
     return db.query(Analysis).filter(Analysis.id == analysis_id).first()
 
 
+def update_analysis(
+    db: Session,
+    analysis_id: str,
+    arabic_text: Optional[str] = None,
+    french_text: Optional[str] = None,
+    segments_json: Optional[str] = None,
+    article_markdown: Optional[str] = None,
+) -> Optional[Analysis]:
+    record = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not record:
+        return None
+    if arabic_text is not None:
+        record.arabic_text = arabic_text
+    if french_text is not None:
+        record.french_text = french_text
+    if segments_json is not None:
+        record.segments_json = segments_json
+    if article_markdown is not None:
+        record.article_markdown = article_markdown
+    db.commit()
+    db.refresh(record)
+    return record
+
+
 def delete_analysis(db: Session, analysis_id: str) -> bool:
     record = db.query(Analysis).filter(Analysis.id == analysis_id).first()
     if not record:
@@ -70,13 +94,22 @@ def delete_analysis(db: Session, analysis_id: str) -> bool:
     upload_filename = record.upload_filename
     db.delete(record)
     db.commit()
-    # Clean up generated subtitle videos
-    from utils.file_manager import get_video_path, safe_remove, get_upload_path
-    for lang in ("arabic", "french"):
-        safe_remove(get_video_path(analysis_id, lang))
+    # Clean up generated subtitle videos (glob to catch any lang variant)
+    import glob as _glob
+    import os as _os
+    from utils.file_manager import VIDEOS_DIR, UPLOADS_DIR
+    for video_file in _glob.glob(_os.path.join(VIDEOS_DIR, f"{analysis_id}_*.mp4")):
+        try:
+            _os.unlink(video_file)
+        except OSError:
+            pass
     # Clean up uploaded video file
     if upload_id and upload_filename:
-        import os
-        ext = os.path.splitext(upload_filename)[1]
-        safe_remove(get_upload_path(upload_id, ext))
+        ext = _os.path.splitext(upload_filename)[1]
+        upload_path = _os.path.join(UPLOADS_DIR, f"{upload_id}{ext}")
+        try:
+            if _os.path.exists(upload_path):
+                _os.unlink(upload_path)
+        except OSError:
+            pass
     return True
