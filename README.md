@@ -1,6 +1,6 @@
 # Arabic Video Transcriber
 
-A full-stack web application for Arabic video transcription and translation. Paste a YouTube URL, select a time range, preview the clip, and get a full Arabic transcription, French translation, and a structured French article — all powered by Groq Whisper and Google Gemini.
+A full-stack web application for Arabic video transcription and translation. Paste a YouTube URL **or upload a local video file**, select a time range, and get a full Arabic transcription, French translation, and a structured French article — all powered by Groq Whisper and Google Gemini.
 
 ---
 
@@ -86,17 +86,32 @@ docker compose logs -f backend
 
 ---
 
+## Video Upload
+
+In addition to YouTube URLs, you can upload a local video file directly from the UI.
+
+**Limits:**
+- Max file size: **50 MB**
+- Max video duration: **30 minutes**
+- Transcription segment: **30 minutes** max (same as YouTube)
+- Accepted formats: `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`, `.m4v`
+
+Uploaded files are stored server-side and deleted automatically when the analysis is removed from history.
+
+---
+
 ## API Reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/video/info` | Fetch video title, duration, thumbnail |
-| POST | `/api/video/clip` | Download & stream a video clip |
-| POST | `/api/transcribe` | Extract audio + transcribe with Whisper |
+| POST | `/api/video/info` | Fetch YouTube video title, duration, thumbnail |
+| POST | `/api/upload` | Upload a local video file (returns `upload_id`) |
+| POST | `/api/transcribe` | Extract audio + transcribe with Whisper (YouTube or upload) |
 | POST | `/api/translate` | Translate + generate article with Gemini |
 | GET | `/api/history` | List past analyses (paginated) |
 | GET | `/api/history/{id}` | Get full analysis record |
-| DELETE | `/api/history/{id}` | Delete an analysis |
+| DELETE | `/api/history/{id}` | Delete an analysis (also cleans up uploaded file) |
+| POST | `/api/subtitle-video/{id}` | Generate/download subtitled video |
 | GET | `/api/health` | Health check |
 
 ---

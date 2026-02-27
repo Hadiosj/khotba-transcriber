@@ -26,3 +26,6 @@ class Analysis(Base):
     cost_json = Column(Text, nullable=True)
     status = Column(String, default="completed")
     processing_time_seconds = Column(Float, nullable=True)
+    source_type = Column(String, nullable=True)       # "youtube" or "upload"
+    upload_id = Column(String, nullable=True)          # UUID for uploaded file
+    upload_filename = Column(String, nullable=True)    # original filename

@@ -7,17 +7,20 @@ from database.models import Analysis
 
 def create_analysis(
     db: Session,
-    youtube_url: str,
-    video_title: str,
-    thumbnail_url: Optional[str],
-    start_seconds: int,
-    end_seconds: int,
-    arabic_text: str,
-    french_text: str,
-    article_markdown: str,
-    segments_json: str,
-    processing_time_seconds: float,
+    youtube_url: str = "",
+    video_title: str = "",
+    thumbnail_url: Optional[str] = None,
+    start_seconds: int = 0,
+    end_seconds: int = 0,
+    arabic_text: str = "",
+    french_text: str = "",
+    article_markdown: str = "",
+    segments_json: str = "",
+    processing_time_seconds: float = 0.0,
     cost_json: Optional[str] = None,
+    source_type: str = "youtube",
+    upload_id: Optional[str] = None,
+    upload_filename: Optional[str] = None,
 ) -> Analysis:
     record = Analysis(
         youtube_url=youtube_url,
@@ -32,6 +35,9 @@ def create_analysis(
         cost_json=cost_json,
         status="completed",
         processing_time_seconds=processing_time_seconds,
+        source_type=source_type,
+        upload_id=upload_id,
+        upload_filename=upload_filename,
     )
     db.add(record)
     db.commit()
@@ -60,10 +66,17 @@ def delete_analysis(db: Session, analysis_id: str) -> bool:
     record = db.query(Analysis).filter(Analysis.id == analysis_id).first()
     if not record:
         return False
+    upload_id = record.upload_id
+    upload_filename = record.upload_filename
     db.delete(record)
     db.commit()
-    # Clean up any generated subtitle videos
-    from utils.file_manager import get_video_path, safe_remove
+    # Clean up generated subtitle videos
+    from utils.file_manager import get_video_path, safe_remove, get_upload_path
     for lang in ("arabic", "french"):
         safe_remove(get_video_path(analysis_id, lang))
+    # Clean up uploaded video file
+    if upload_id and upload_filename:
+        import os
+        ext = os.path.splitext(upload_filename)[1]
+        safe_remove(get_upload_path(upload_id, ext))
     return True

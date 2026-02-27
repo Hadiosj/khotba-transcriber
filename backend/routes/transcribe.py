@@ -1,11 +1,13 @@
 import time
 import traceback
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
-from services.downloader import validate_youtube_url, extract_audio
+from services.downloader import validate_youtube_url, extract_audio, extract_audio_from_local
 from services.transcriber import transcribe_audio
+from utils.file_manager import find_upload_file
 from utils.logger import get_logger
 from utils.file_manager import safe_remove
 from utils.models_config import GROQ_WHISPER_COST_PER_SECOND
@@ -18,23 +20,25 @@ MAX_DURATION = 30 * 60  # 30 minutes
 
 
 class TranscribeRequest(BaseModel):
-    url: str
+    url: Optional[str] = None
+    upload_id: Optional[str] = None
     start_seconds: int
     end_seconds: int
     include_timestamps: bool = True
 
+    @model_validator(mode="after")
+    def check_source(self):
+        if not self.url and not self.upload_id:
+            raise ValueError("Either 'url' or 'upload_id' must be provided")
+        if self.url and self.upload_id:
+            raise ValueError("Provide either 'url' or 'upload_id', not both")
+        return self
+
 
 @router.post("/transcribe")
 async def transcribe(body: TranscribeRequest):
-    url = body.url.strip()
     start = body.start_seconds
     end = body.end_seconds
-
-    logger.info(f"Starting transcription for URL: {url} [{start}s - {end}s]")
-    t0 = time.perf_counter()
-
-    if not validate_youtube_url(url):
-        raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
     if end <= start:
         raise HTTPException(status_code=400, detail="end_seconds must be greater than start_seconds")
@@ -45,10 +49,27 @@ async def transcribe(body: TranscribeRequest):
             detail=f"Segment cannot exceed {MAX_DURATION // 60} minutes",
         )
 
+    if body.url:
+        url = body.url.strip()
+        logger.info(f"Starting transcription for URL: {url} [{start}s - {end}s]")
+        if not validate_youtube_url(url):
+            raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+    else:
+        logger.info(f"Starting transcription for upload_id: {body.upload_id} [{start}s - {end}s]")
+
+    t0 = time.perf_counter()
     wav_path = None
     try:
         t_audio = time.perf_counter()
-        wav_path = extract_audio(url, start, end)
+
+        if body.url:
+            wav_path = extract_audio(body.url.strip(), start, end)
+        else:
+            local_path = find_upload_file(body.upload_id)
+            if not local_path:
+                raise HTTPException(status_code=404, detail="Uploaded file not found")
+            wav_path = extract_audio_from_local(local_path, start, end)
+
         audio_elapsed = time.perf_counter() - t_audio
         logger.info(f"Audio extraction completed in {audio_elapsed:.2f}s")
 
@@ -58,8 +79,6 @@ async def transcribe(body: TranscribeRequest):
         logger.info(f"Whisper transcription completed in {trans_elapsed:.2f}s")
 
         total = time.perf_counter() - t0
-
-        # Compute Whisper cost from actual audio duration
         audio_seconds = float(end - start)
         whisper_cost = round(audio_seconds * GROQ_WHISPER_COST_PER_SECOND, 6)
         logger.info(
@@ -73,6 +92,8 @@ async def transcribe(body: TranscribeRequest):
             "whisper_cost_usd": whisper_cost,
         }
 
+    except HTTPException:
+        raise
     except FileNotFoundError as e:
         logger.error(f"yt-dlp or FFmpeg not found: {type(e).__name__}")
         raise HTTPException(

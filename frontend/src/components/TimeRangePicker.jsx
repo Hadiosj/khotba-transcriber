@@ -22,6 +22,8 @@ export default function TimeRangePicker({
   setIncludeTimestamps,
   onTranscribe,
   onBack,
+  isUpload = false,
+  uploadFilename = null,
 }) {
   const [startInput, setStartInput] = useState(fmtTime(range.start))
   const [endInput, setEndInput] = useState(fmtTime(range.end))
@@ -76,23 +78,37 @@ export default function TimeRangePicker({
 
   return (
     <div className="space-y-6">
-      {/* Video player — shown immediately so user can navigate to find timestamps */}
+      {/* Video info / player */}
       <div className="bg-white rounded-xl shadow-md p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="min-w-0 flex-1 mr-4">
             <p className="font-semibold text-gray-800 truncate">{videoInfo.title}</p>
             <p className="text-xs text-gray-500">Durée totale: {fmtTime(duration)}</p>
+            {isUpload && uploadFilename && (
+              <p className="text-xs text-indigo-500 mt-0.5 truncate">📎 {uploadFilename}</p>
+            )}
           </div>
           <button onClick={onBack} className="text-sm text-indigo-600 hover:text-indigo-800 flex-shrink-0">
             ← Changer
           </button>
         </div>
-        <VideoPreview
-          url={url}
-          start={previewRange.start}
-          end={previewRange.end}
-          autoplay={previewRange.autoplay}
-        />
+        {isUpload ? (
+          <div className="flex items-center justify-center h-24 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+            <div className="text-center text-gray-400">
+              <svg className="w-8 h-8 mx-auto mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <p className="text-xs">Aperçu non disponible pour les fichiers locaux</p>
+            </div>
+          </div>
+        ) : (
+          <VideoPreview
+            url={url}
+            start={previewRange.start}
+            end={previewRange.end}
+            autoplay={previewRange.autoplay}
+          />
+        )}
       </div>
 
       {/* Time range controls */}
@@ -176,13 +192,15 @@ export default function TimeRangePicker({
         </label>
 
         <div className="flex gap-3">
-          <button
-            onClick={handlePreviewSelection}
-            disabled={!canTranscribe}
-            className="flex-1 py-2.5 border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium rounded-lg transition-colors"
-          >
-            Prévisualiser la sélection
-          </button>
+          {!isUpload && (
+            <button
+              onClick={handlePreviewSelection}
+              disabled={!canTranscribe}
+              className="flex-1 py-2.5 border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium rounded-lg transition-colors"
+            >
+              Prévisualiser la sélection
+            </button>
+          )}
           <button
             onClick={onTranscribe}
             disabled={!canTranscribe}

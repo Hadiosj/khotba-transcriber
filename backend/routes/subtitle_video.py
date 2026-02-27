@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from database.db import get_db
 from database.crud import get_analysis
 from services.subtitle_burner import burn_subtitles
-from utils.file_manager import get_video_path
+from utils.file_manager import get_video_path, find_upload_file
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -53,14 +53,26 @@ async def generate_subtitled_video(
 
     if not os.path.exists(out_path):
         logger.info(f"Cache miss — generating subtitled video for {analysis_id} lang={lang}")
+
+        # Resolve video source: local upload or YouTube
+        video_source_path = ""
+        if record.upload_id:
+            video_source_path = find_upload_file(record.upload_id) or ""
+            if not video_source_path:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Uploaded video file not found. It may have been deleted.",
+                )
+
         try:
             burn_subtitles(
-                youtube_url=record.youtube_url,
                 start=record.start_seconds,
                 end=record.end_seconds,
                 segments=segments,
                 analysis_id=analysis_id,
                 lang=lang,
+                youtube_url=record.youtube_url or "",
+                video_source_path=video_source_path,
             )
         except Exception as exc:
             logger.error(f"Subtitle video generation failed: {exc}")

@@ -25,7 +25,7 @@ class Segment(BaseModel):
 class TranslateRequest(BaseModel):
     segments: list[Segment]
     arabic_text: str
-    youtube_url: str
+    youtube_url: str = ""
     video_title: str
     thumbnail_url: str | None = None
     start_seconds: int
@@ -33,6 +33,9 @@ class TranslateRequest(BaseModel):
     include_timestamps: bool = True
     whisper_audio_seconds: float = 0.0
     whisper_cost_usd: float = 0.0
+    source_type: str = "youtube"
+    upload_id: str | None = None
+    upload_filename: str | None = None
 
 
 @router.post("/translate")
@@ -101,6 +104,9 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
             ),
             cost_json=json.dumps(costs),
             processing_time_seconds=round(total_elapsed, 2),
+            source_type=body.source_type,
+            upload_id=body.upload_id,
+            upload_filename=body.upload_filename,
         )
         analysis_id = record.id
         logger.info(f"Analysis saved to DB with id={analysis_id} total_cost=${total_cost:.5f}")
