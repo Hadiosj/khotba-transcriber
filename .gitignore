@@ -12,6 +12,8 @@ backend/logs/*
 !backend/logs/.gitkeep
 backend/videos/*
 !backend/videos/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Python
 __pycache__/

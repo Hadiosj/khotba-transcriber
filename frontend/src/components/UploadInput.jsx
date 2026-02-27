@@ -1,9 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
-const MAX_SIZE_MB = 50
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
-const MAX_DURATION_MIN = 30
-const ALLOWED_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v']
+// Fallback values used while the limits are being fetched
+const FALLBACK_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v']
 
 function formatBytes(bytes) {
   if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} Go`
@@ -16,15 +14,30 @@ export default function UploadInput({ api, onSuccess }) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(null) // 0–100 or null
   const [error, setError] = useState('')
+  const [limits, setLimits] = useState(null)
   const inputRef = useRef(null)
+
+  useEffect(() => {
+    fetch(`${api}/api/upload/limits`)
+      .then(r => r.json())
+      .then(setLimits)
+      .catch(() => {})
+  }, [api])
+
+  const allowedExts = limits
+    ? limits.allowed_extensions.map(e => e.replace('.', ''))
+    : FALLBACK_EXTS
+  const maxSizeBytes = limits?.max_file_size_bytes ?? null
+  const maxSizeMb = maxSizeBytes != null ? Math.round(maxSizeBytes / 1024 / 1024) : null
+  const maxDurMin = limits != null ? Math.round(limits.max_duration_seconds / 60) : null
 
   function validate(file) {
     const ext = file.name.split('.').pop().toLowerCase()
-    if (!ALLOWED_EXTS.includes(ext)) {
-      return `Format non supporté (.${ext}). Formats acceptés : ${ALLOWED_EXTS.map(e => '.' + e).join(', ')}`
+    if (!allowedExts.includes(ext)) {
+      return `Format non supporté (.${ext}). Formats acceptés : ${allowedExts.map(e => '.' + e).join(', ')}`
     }
-    if (file.size > MAX_SIZE_BYTES) {
-      return `Fichier trop volumineux (${formatBytes(file.size)}). Maximum : ${MAX_SIZE_MB} Mo.`
+    if (maxSizeBytes != null && file.size > maxSizeBytes) {
+      return `Fichier trop volumineux (${formatBytes(file.size)}). Maximum : ${maxSizeMb} Mo.`
     }
     return null
   }
@@ -122,7 +135,7 @@ export default function UploadInput({ api, onSuccess }) {
         <input
           ref={inputRef}
           type="file"
-          accept={ALLOWED_EXTS.map(e => '.' + e).join(',')}
+          accept={allowedExts.map(e => '.' + e).join(',')}
           className="hidden"
           disabled={uploading}
           onChange={e => handleFile(e.target.files[0])}
@@ -158,7 +171,7 @@ export default function UploadInput({ api, onSuccess }) {
             </p>
             <p className="text-xs text-gray-400 mb-3">ou cliquez pour parcourir</p>
             <p className="text-xs text-gray-400">
-              Formats : {ALLOWED_EXTS.map(e => '.' + e).join(', ')} · Max {MAX_SIZE_MB} Mo · Max {MAX_DURATION_MIN} min
+              Formats : {allowedExts.map(e => '.' + e).join(', ')} · {maxSizeMb != null ? `Max ${maxSizeMb} Mo` : ''} · {maxDurMin != null ? `Max ${maxDurMin} min` : ''}
             </p>
           </>
         )}

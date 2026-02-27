@@ -33,6 +33,16 @@ def _probe_duration(file_path: str) -> float:
     return float(data.get("format", {}).get("duration", 0))
 
 
+@router.get("/upload/limits")
+async def get_upload_limits():
+    """Return the upload constraints so the frontend can stay in sync."""
+    return {
+        "max_file_size_bytes": MAX_FILE_SIZE,
+        "max_duration_seconds": MAX_DURATION_SECONDS,
+        "allowed_extensions": sorted(ALLOWED_EXTENSIONS),
+    }
+
+
 @router.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
     """Accept a local video file, validate size/duration, and store it for transcription."""
