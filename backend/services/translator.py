@@ -7,9 +7,12 @@ from google import genai
 
 from utils.logger import get_logger
 from utils.models_config import (
-    GEMINI_MODEL, GEMINI_ARTICLE_MODEL,
-    GEMINI_FLASH_INPUT_COST_PER_M, GEMINI_FLASH_OUTPUT_COST_PER_M,
-    GEMINI_ARTICLE_INPUT_COST_PER_M, GEMINI_ARTICLE_OUTPUT_COST_PER_M,
+    GEMINI__TRANSLATION_MODEL,
+    GEMINI_ARTICLE_MODEL,
+    GEMINI_TRANSLATION_INPUT_COST_PER_M,
+    GEMINI_TRANSLATION_OUTPUT_COST_PER_M,
+    GEMINI_ARTICLE_INPUT_COST_PER_M,
+    GEMINI_ARTICLE_OUTPUT_COST_PER_M,
 )
 
 logger = get_logger(__name__)
@@ -56,7 +59,9 @@ def _extract_usage(response) -> dict:
     }
 
 
-def _gemini_cost(usage: dict, input_cost_per_m: float, output_cost_per_m: float) -> float:
+def _gemini_cost(
+    usage: dict, input_cost_per_m: float, output_cost_per_m: float
+) -> float:
     return (
         usage["input_tokens"] * input_cost_per_m
         + usage["output_tokens"] * output_cost_per_m
@@ -82,11 +87,17 @@ async def translate_segments(
 
     if include_timestamps:
         segments_json = json.dumps(segments, ensure_ascii=False)
-        translation_prompt = TRANSLATION_PROMPT_TEMPLATE.format(segments_json=segments_json)
+        translation_prompt = TRANSLATION_PROMPT_TEMPLATE.format(
+            segments_json=segments_json
+        )
     else:
-        translation_prompt = PLAIN_TRANSLATION_PROMPT_TEMPLATE.format(arabic_text=arabic_text)
+        translation_prompt = PLAIN_TRANSLATION_PROMPT_TEMPLATE.format(
+            arabic_text=arabic_text
+        )
 
-    translation_raw, translation_usage = await _call_gemini(client, GEMINI_MODEL, translation_prompt)
+    translation_raw, translation_usage = await _call_gemini(
+        client, GEMINI__TRANSLATION_MODEL, translation_prompt
+    )
 
     if include_timestamps:
         translated_segments = _parse_segments(translation_raw, segments)
@@ -95,7 +106,11 @@ async def translate_segments(
         translated_segments = []
         french_text = translation_raw.strip()
 
-    translation_cost = _gemini_cost(translation_usage, GEMINI_FLASH_INPUT_COST_PER_M, GEMINI_FLASH_OUTPUT_COST_PER_M)
+    translation_cost = _gemini_cost(
+        translation_usage,
+        GEMINI_TRANSLATION_INPUT_COST_PER_M,
+        GEMINI_TRANSLATION_OUTPUT_COST_PER_M,
+    )
 
     elapsed = time.perf_counter() - t0
     logger.info(
@@ -122,9 +137,13 @@ async def generate_article(arabic_text: str) -> dict:
 
     client = _get_client()
     article_prompt = ARTICLE_PROMPT_TEMPLATE.format(arabic_text=arabic_text)
-    article_raw, article_usage = await _call_gemini(client, GEMINI_ARTICLE_MODEL, article_prompt)
+    article_raw, article_usage = await _call_gemini(
+        client, GEMINI_ARTICLE_MODEL, article_prompt
+    )
 
-    article_cost = _gemini_cost(article_usage, GEMINI_ARTICLE_INPUT_COST_PER_M, GEMINI_ARTICLE_OUTPUT_COST_PER_M)
+    article_cost = _gemini_cost(
+        article_usage, GEMINI_ARTICLE_INPUT_COST_PER_M, GEMINI_ARTICLE_OUTPUT_COST_PER_M
+    )
 
     elapsed = time.perf_counter() - t0
     logger.info(
@@ -164,7 +183,9 @@ def _parse_segments(raw: str, fallback_segments: list[dict]) -> list[dict]:
                 for seg in data
             ]
     except Exception as e:
-        logger.warning(f"Could not parse translated segments JSON: {e}. Using raw text as single segment.")
+        logger.warning(
+            f"Could not parse translated segments JSON: {e}. Using raw text as single segment."
+        )
 
     # Fallback: return raw text as single segment
     return [{"start": 0.0, "end": 0.0, "text": raw}]
