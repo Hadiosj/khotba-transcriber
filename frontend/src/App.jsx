@@ -38,7 +38,7 @@ function fmtCost(usd) {
 
 export default function App() {
   const [step, setStep] = useState(STEPS.URL)
-  const [sourceMode, setSourceMode] = useState('youtube') // 'youtube' | 'upload'
+  const [sourceMode, setSourceMode] = useState('upload') // 'youtube' | 'upload'
   const [videoInfo, setVideoInfo] = useState(null)
   const [url, setUrl] = useState('')
   const [uploadId, setUploadId] = useState(null)
@@ -249,6 +249,17 @@ export default function App() {
                   Téléverser
                 </button>
               </div>
+
+              {sourceMode === 'youtube' && (
+                <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+                  <svg className="mt-0.5 w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                  <span>
+                    <strong>Attention :</strong> YouTube peut bloquer les requêtes depuis les serveurs déployés. Cette fonctionnalité fonctionne uniquement si l'outil tourne en local. Préférez l'option <strong>Téléverser</strong> si vous utilisez la version en ligne.
+                  </span>
+                </div>
+              )}
 
               {sourceMode === 'youtube' ? (
                 <UrlInput
