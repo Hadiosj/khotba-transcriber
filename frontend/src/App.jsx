@@ -145,6 +145,7 @@ export default function App() {
         analysisId: translateData.analysis_id,
         includeTimestamps,
         costs: translateData.costs ?? null,
+        fromHistory: false,
       })
       setStep(STEPS.RESULTS)
     } catch (err) {
@@ -171,6 +172,7 @@ export default function App() {
       analysisId: item.id,
       includeTimestamps: hasSegments,
       costs: item.costs ?? null,
+      fromHistory: true,
     })
     setStep(STEPS.RESULTS)
     setHistoryOpen(false)

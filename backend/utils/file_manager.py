@@ -5,14 +5,12 @@ import shutil
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 TMP_DIR = os.path.join(BASE_DIR, "tmp")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 
 
 def ensure_dirs():
     os.makedirs(TMP_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
-    os.makedirs(VIDEOS_DIR, exist_ok=True)
     os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
@@ -30,10 +28,6 @@ def find_upload_file(upload_id: str) -> str | None:
         if base == upload_id:
             return os.path.join(UPLOADS_DIR, name)
     return None
-
-
-def get_video_path(analysis_id: str, lang: str) -> str:
-    return os.path.join(VIDEOS_DIR, f"{analysis_id}_{lang}.mp4")
 
 
 def clear_tmp() -> int:

@@ -2,66 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 
 const LIMIT = 10
 
-function VideoDownloadBtn({ api, id, lang }) {
-  const [state, setState] = useState('idle') // idle | loading | error
-
-  async function handleDownload(e) {
-    e.stopPropagation()
-    setState('loading')
-    try {
-      const res = await fetch(`${api}/api/subtitle-video/${id}?lang=${lang}`, { method: 'POST' })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Erreur')
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `khotba-${lang === 'arabic' ? 'arabe' : 'francais'}-${id.slice(0, 8)}.mp4`
-      a.click()
-      URL.revokeObjectURL(url)
-      setState('idle')
-    } catch {
-      setState('error')
-      setTimeout(() => setState('idle'), 3000)
-    }
-  }
-
-  const label = lang === 'arabic' ? 'AR' : 'FR'
-  const title = lang === 'arabic' ? 'Télécharger vidéo (sous-titres arabes)' : 'Télécharger vidéo (sous-titres français)'
-
-  return (
-    <button
-      onClick={handleDownload}
-      disabled={state === 'loading'}
-      title={title}
-      className={`p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-bold
-        ${state === 'error'
-          ? 'text-red-500 bg-red-50'
-          : 'text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100'
-        }
-        disabled:opacity-50`}
-    >
-      {state === 'loading' ? (
-        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      ) : state === 'error' ? (
-        '!'
-      ) : (
-        <span className="flex items-center gap-0.5">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          {label}
-        </span>
-      )}
-    </button>
-  )
-}
-
 function Spinner({ className = 'w-6 h-6' }) {
   return (
     <svg className={`animate-spin text-indigo-600 ${className}`} fill="none" viewBox="0 0 24 24">
@@ -223,12 +163,6 @@ export default function HistoryPanel({ api, open, onClose, onSelect }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
-                    {item.has_timestamps && (
-                      <>
-                        <VideoDownloadBtn api={api} id={item.id} lang="arabic" />
-                        <VideoDownloadBtn api={api} id={item.id} lang="french" />
-                      </>
-                    )}
                     <button
                       onClick={e => handleDelete(e, item.id)}
                       disabled={deletingId === item.id}

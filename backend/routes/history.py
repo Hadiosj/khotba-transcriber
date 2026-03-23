@@ -1,6 +1,4 @@
-import glob
 import json
-import os
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -10,7 +8,6 @@ from sqlalchemy.orm import Session
 from database.db import get_db
 from database.crud import get_analyses, get_analysis, delete_analysis, update_analysis
 from services.translator import translate_segments
-from utils.file_manager import VIDEOS_DIR
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -119,16 +116,6 @@ class UpdateAnalysisRequest(BaseModel):
     french_text: Optional[str] = None
 
 
-def _invalidate_video_cache(analysis_id: str, lang: str = "*"):
-    """Delete cached subtitle video files for an analysis."""
-    pattern = os.path.join(VIDEOS_DIR, f"{analysis_id}_{lang}.mp4")
-    for path in glob.glob(pattern):
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
-
-
 @router.patch("/history/{analysis_id}")
 async def update_history_item(
     analysis_id: str, body: UpdateAnalysisRequest, db: Session = Depends(get_db)
@@ -180,8 +167,6 @@ async def update_history_item(
         except Exception as e:
             logger.error(f"Retranslation failed: {e}")
             raise HTTPException(status_code=500, detail="Retranslation failed")
-        # Invalidate both video caches since content changed
-        _invalidate_video_cache(analysis_id)
 
     # When Arabic full-text is updated (no-timestamps mode): retranslate
     elif body.arabic_text is not None:
@@ -195,10 +180,6 @@ async def update_history_item(
         except Exception as e:
             logger.error(f"Retranslation failed: {e}")
             raise HTTPException(status_code=500, detail="Retranslation failed")
-
-    # When French segments/text are updated: invalidate French video cache
-    if body.french_segments is not None:
-        _invalidate_video_cache(analysis_id, "french")
 
     updated = update_analysis(
         db,

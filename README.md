@@ -1,6 +1,6 @@
 # Arabic Video Transcriber
 
-A full-stack web application for Arabic video transcription and translation. Paste a YouTube URL or upload a local video file, select a time range, and get a full Arabic transcription, French translation, download the original video with french subtitles, and a structured French article — all powered by Groq Whisper and Google Gemini. Uploaded files are stored server-side and deleted automatically when the analysis is removed from history.
+A full-stack web application for Arabic video transcription and translation. Paste a YouTube URL or upload a local video file, select a time range, and get a full Arabic transcription, French translation, download the original video with french subtitles, and a structured French article — all powered by Groq Whisper and Google Gemini. No uploaded files are stored, videos are deleted automatically when the analysis is done.
 
 
 ## API Keys

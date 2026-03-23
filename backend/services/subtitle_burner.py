@@ -1,8 +1,7 @@
-import os
 import subprocess
 import time
 
-from utils.file_manager import tmp_path, safe_remove, get_video_path, VIDEOS_DIR
+from utils.file_manager import tmp_path, safe_remove
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,11 +16,11 @@ def seconds_to_srt_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-def generate_srt(segments: list) -> str:
+def generate_srt(segments: list, offset: float = 0.0) -> str:
     lines = []
     for i, seg in enumerate(segments, 1):
-        start_str = seconds_to_srt_time(float(seg["start"]))
-        end_str = seconds_to_srt_time(float(seg["end"]))
+        start_str = seconds_to_srt_time(float(seg["start"]) + offset)
+        end_str = seconds_to_srt_time(float(seg["end"]) + offset)
         text = seg["text"].strip()
         lines.append(str(i))
         lines.append(f"{start_str} --> {end_str}")
@@ -38,6 +37,8 @@ def burn_subtitles(
     lang: str,
     youtube_url: str = "",
     video_source_path: str = "",
+    text_color: str = "white",
+    background: bool = False,
 ) -> str:
     """Download (or use local) video segment and burn subtitles into it.
 
@@ -48,7 +49,8 @@ def burn_subtitles(
     """
     logger.info(
         f"Generating subtitled video: analysis={analysis_id} lang={lang} "
-        f"start={start}s end={end}s segments={len(segments)}"
+        f"start={start}s end={end}s segments={len(segments)} "
+        f"text_color={text_color} background={background}"
     )
     t0 = time.perf_counter()
 
@@ -75,6 +77,7 @@ def burn_subtitles(
                 "-to", str(end),
                 "-i", video_source_path,
                 "-c", "copy",
+                "-reset_timestamps", "1",
                 "-y", temp_video,
             ]
             dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=1800)
@@ -107,6 +110,7 @@ def burn_subtitles(
                     "-ss", str(start), "-to", str(end), "-i", stream_urls[1],
                     "-c", "copy",
                     "-map", "0:v:0", "-map", "1:a:0",
+                    "-reset_timestamps", "1",
                     "-y", temp_video,
                 ]
             else:
@@ -116,6 +120,7 @@ def burn_subtitles(
                     "-to", str(end),
                     "-i", stream_urls[0],
                     "-c", "copy",
+                    "-reset_timestamps", "1",
                     "-y", temp_video,
                 ]
             dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=1800)
@@ -130,18 +135,26 @@ def burn_subtitles(
             raise RuntimeError(f"FFmpeg download error: {err}")
 
         # ── Step 3: Burn subtitles into the temp video ─────────────────────────
-        os.makedirs(VIDEOS_DIR, exist_ok=True)
-        out_path = get_video_path(analysis_id, lang)
+        out_path = tmp_path(".mp4")
 
-        subtitle_style = (
-            "FontSize=20,"
-            "Alignment=2,"
-            "PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,"
-            "BorderStyle=3,"
-            "Outline=1,"
-            "Shadow=0"
-        )
+        primary = "&H00FFFFFF" if text_color == "white" else "&H00000000"
+        outline = "&H00000000" if text_color == "white" else "&H00FFFFFF"
+        if background:
+            back_color = "&H80000000" if text_color == "white" else "&H80FFFFFF"
+            subtitle_style = (
+                f"FontSize=20,Alignment=2,"
+                f"PrimaryColour={primary},"
+                f"OutlineColour={outline},"
+                f"BackColour={back_color},"
+                "BorderStyle=3,Outline=1,Shadow=0"
+            )
+        else:
+            subtitle_style = (
+                f"FontSize=20,Alignment=2,"
+                f"PrimaryColour={primary},"
+                f"OutlineColour={outline},"
+                "BorderStyle=1,Outline=2,Shadow=0"
+            )
         burn_cmd = [
             "ffmpeg",
             "-i", temp_video,

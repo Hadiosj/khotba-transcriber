@@ -94,16 +94,9 @@ def delete_analysis(db: Session, analysis_id: str) -> bool:
     upload_filename = record.upload_filename
     db.delete(record)
     db.commit()
-    # Clean up generated subtitle videos (glob to catch any lang variant)
-    import glob as _glob
-    import os as _os
-    from utils.file_manager import VIDEOS_DIR, UPLOADS_DIR
-    for video_file in _glob.glob(_os.path.join(VIDEOS_DIR, f"{analysis_id}_*.mp4")):
-        try:
-            _os.unlink(video_file)
-        except OSError:
-            pass
     # Clean up uploaded video file
+    import os as _os
+    from utils.file_manager import UPLOADS_DIR
     if upload_id and upload_filename:
         ext = _os.path.splitext(upload_filename)[1]
         upload_path = _os.path.join(UPLOADS_DIR, f"{upload_id}{ext}")
