@@ -54,6 +54,7 @@ GROQ_API_KEY=gsk_...
 GEMINI_API_KEY=...
 DATABASE_URL=sqlite:///./analyses.db
 ALLOWED_ORIGIN=http://localhost:5173
+WEBSHARE_PROXY_URL=http://user:password@p.webshare.io:80  # optional, see below
 ```
 
 **4. Run:**
@@ -124,6 +125,6 @@ docker compose logs -f backend
 
 ### YouTube on deployed servers
 
-YouTube actively blocks requests from datacenter/server IPs, which means the YouTube URL feature does not work on a hosted deployment. The UI shows a warning when this tab is selected. This is a known issue with no reliable fix at the moment and will be addressed in a future update.
+YouTube actively blocks requests from datacenter/server IPs, so the YouTube URL feature won't work on a hosted deployment. It works fine when running locally.
 
-The feature works normally when running the app locally.
+**Fix:** use a residential proxy (e.g. [Webshare](https://www.webshare.io) rotating residential proxies). Set `WEBSHARE_PROXY_URL` in your `.env` and all yt-dlp requests will route through it. Leave the variable unset when running locally.

@@ -1,5 +1,6 @@
 import subprocess
 import json
+import os
 import re
 import time
 
@@ -37,12 +38,23 @@ def _extract_video_id(url: str) -> str:
     return match.group(1)
 
 
+def _proxy_args() -> list:
+    proxy = os.getenv("WEBSHARE_PROXY_URL")
+    return ["--proxy", proxy] if proxy else []
+
+
+def _httpx_proxies() -> dict | None:
+    proxy = os.getenv("WEBSHARE_PROXY_URL")
+    return {"http://": proxy, "https://": proxy} if proxy else None
+
+
 def _get_stream_url_invidious(youtube_url: str) -> str:
     video_id = _extract_video_id(youtube_url)
+    proxies = _httpx_proxies()
     for instance in INVIDIOUS_INSTANCES:
         try:
             logger.info(f"Trying Invidious instance: {instance}")
-            r = httpx.get(f"{instance}/api/v1/videos/{video_id}", timeout=10)
+            r = httpx.get(f"{instance}/api/v1/videos/{video_id}", timeout=10, proxies=proxies)
             r.raise_for_status()
             data = r.json()
             formats = data.get("adaptiveFormats", [])
@@ -65,6 +77,7 @@ def _get_stream_url_ytdlp(url: str) -> str:
         "bestaudio/best",
         "--extractor-args",
         f"youtube:player_client={_PLAYER_CLIENTS}",
+        *_proxy_args(),
         "--get-url",
         url,
     ]
@@ -90,6 +103,7 @@ def get_video_info(url: str) -> dict:
         "--skip-download",
         "--extractor-args",
         f"youtube:player_client={_PLAYER_CLIENTS}",
+        *_proxy_args(),
         url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -101,7 +115,7 @@ def get_video_info(url: str) -> dict:
             video_id = _extract_video_id(url)
             for instance in INVIDIOUS_INSTANCES:
                 try:
-                    r = httpx.get(f"{instance}/api/v1/videos/{video_id}", timeout=10)
+                    r = httpx.get(f"{instance}/api/v1/videos/{video_id}", timeout=10, proxies=_httpx_proxies())
                     r.raise_for_status()
                     data = r.json()
                     elapsed = time.perf_counter() - t0
