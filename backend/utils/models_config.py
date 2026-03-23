@@ -39,4 +39,4 @@ TRANSLATION_MODELS = {
 }
 
 DEFAULT_TRANSCRIPTION_MODEL = "whisper-large-v3-turbo"
-DEFAULT_TRANSLATION_MODEL = "gemini-3.1-pro-preview"
+DEFAULT_TRANSLATION_MODEL = "gemini-3.1-flash-lite-preview"

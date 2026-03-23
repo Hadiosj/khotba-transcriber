@@ -65,7 +65,7 @@ export default function App() {
         setAvailableModels(data)
         if (data.transcription?.length) setSelectedTranscriptionModel(data.transcription[0].id)
         if (data.translation?.length) {
-          const defaultModel = data.translation.find(m => !m.free_tier) || data.translation[0]
+          const defaultModel = data.translation.find(m => m.free_tier) || data.translation[0]
           setSelectedTranslationModel(defaultModel.id)
         }
       })
