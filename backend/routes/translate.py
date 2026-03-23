@@ -36,6 +36,7 @@ class TranslateRequest(BaseModel):
     source_type: str = "youtube"
     upload_id: str | None = None
     upload_filename: str | None = None
+    translation_model: str | None = None
 
 
 @router.post("/translate")
@@ -48,6 +49,7 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
             segments=[s.model_dump() for s in body.segments],
             arabic_text=body.arabic_text,
             include_timestamps=body.include_timestamps,
+            model=body.translation_model,
         )
     except RuntimeError as e:
         msg = str(e)
@@ -117,6 +119,7 @@ async def translate(body: TranslateRequest, db: Session = Depends(get_db)):
 class GenerateArticleRequest(BaseModel):
     arabic_text: str
     analysis_id: str | None = None
+    translation_model: str | None = None
 
 
 @router.post("/generate-article")
@@ -124,7 +127,7 @@ async def generate_article_endpoint(body: GenerateArticleRequest, db: Session = 
     logger.info("Article generation requested")
 
     try:
-        result = await generate_article(body.arabic_text)
+        result = await generate_article(body.arabic_text, model=body.translation_model)
     except RuntimeError as e:
         msg = str(e)
         logger.error(f"Article generation failed: {msg}")

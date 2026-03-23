@@ -10,7 +10,7 @@ from services.transcriber import transcribe_audio
 from utils.file_manager import find_upload_file
 from utils.logger import get_logger
 from utils.file_manager import safe_remove
-from utils.models_config import GROQ_WHISPER_COST_PER_SECOND
+from utils.models_config import TRANSCRIPTION_MODELS, DEFAULT_TRANSCRIPTION_MODEL
 
 logger = get_logger(__name__)
 
@@ -25,6 +25,7 @@ class TranscribeRequest(BaseModel):
     start_seconds: int
     end_seconds: int
     include_timestamps: bool = True
+    transcription_model: Optional[str] = None
 
     @model_validator(mode="after")
     def check_source(self):
@@ -74,13 +75,15 @@ async def transcribe(body: TranscribeRequest):
         logger.info(f"Audio extraction completed in {audio_elapsed:.2f}s")
 
         t_trans = time.perf_counter()
-        result = transcribe_audio(wav_path, include_timestamps=body.include_timestamps)
+        result = transcribe_audio(wav_path, include_timestamps=body.include_timestamps, model=body.transcription_model)
         trans_elapsed = time.perf_counter() - t_trans
         logger.info(f"Whisper transcription completed in {trans_elapsed:.2f}s")
 
         total = time.perf_counter() - t0
         audio_seconds = float(end - start)
-        whisper_cost = round(audio_seconds * GROQ_WHISPER_COST_PER_SECOND, 6)
+        transcription_model = body.transcription_model or DEFAULT_TRANSCRIPTION_MODEL
+        cost_per_second = TRANSCRIPTION_MODELS[transcription_model]["cost_per_second"]
+        whisper_cost = round(audio_seconds * cost_per_second, 6)
         logger.info(
             f"Transcription pipeline completed in {total:.2f}s — "
             f"audio={audio_seconds:.1f}s cost=${whisper_cost:.5f}"

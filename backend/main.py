@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database.db import engine, Base
-from routes import video, transcribe, translate, history, subtitle_video, upload
+from routes import video, transcribe, translate, history, subtitle_video, upload, models
 from utils.logger import get_logger
 from utils.file_manager import ensure_dirs, clear_tmp
 
@@ -49,6 +49,7 @@ app.include_router(transcribe.router, prefix="/api", tags=["transcribe"])
 app.include_router(translate.router, prefix="/api", tags=["translate"])
 app.include_router(history.router, prefix="/api", tags=["history"])
 app.include_router(subtitle_video.router, prefix="/api", tags=["subtitle-video"])
+app.include_router(models.router, prefix="/api", tags=["models"])
 
 
 @app.get("/api/health")

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import UrlInput from './components/UrlInput'
 import UploadInput from './components/UploadInput'
 import TimeRangePicker from './components/TimeRangePicker'
 import ResultsPanel from './components/ResultsPanel'
 import HistoryPanel from './components/HistoryPanel'
+import ModelSelector from './components/ModelSelector'
 
 const API = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -52,6 +53,24 @@ export default function App() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [processingError, setProcessingError] = useState(null)
   const [includeTimestamps, setIncludeTimestamps] = useState(true)
+  const [availableModels, setAvailableModels] = useState({ transcription: [], translation: [] })
+  const [selectedTranscriptionModel, setSelectedTranscriptionModel] = useState(null)
+  const [selectedTranslationModel, setSelectedTranslationModel] = useState(null)
+  const [modelsOpen, setModelsOpen] = useState(false)
+
+  useEffect(() => {
+    fetch(`${API}/api/models`)
+      .then(r => r.json())
+      .then(data => {
+        setAvailableModels(data)
+        if (data.transcription?.length) setSelectedTranscriptionModel(data.transcription[0].id)
+        if (data.translation?.length) {
+          const defaultModel = data.translation.find(m => !m.free_tier) || data.translation[0]
+          setSelectedTranslationModel(defaultModel.id)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleTranscribeAndTranslate() {
     setStep(STEPS.PROCESSING)
@@ -65,8 +84,8 @@ export default function App() {
       const extractStart = Date.now()
 
       const transcribeBody = sourceMode === 'upload'
-        ? { upload_id: uploadId, start_seconds: range.start, end_seconds: range.end, include_timestamps: includeTimestamps }
-        : { url, start_seconds: range.start, end_seconds: range.end, include_timestamps: includeTimestamps }
+        ? { upload_id: uploadId, start_seconds: range.start, end_seconds: range.end, include_timestamps: includeTimestamps, transcription_model: selectedTranscriptionModel }
+        : { url, start_seconds: range.start, end_seconds: range.end, include_timestamps: includeTimestamps, transcription_model: selectedTranscriptionModel }
 
       const transcribeRes = await fetch(`${API}/api/transcribe`, {
         method: 'POST',
@@ -114,6 +133,7 @@ export default function App() {
           source_type: sourceMode,
           upload_id: sourceMode === 'upload' ? uploadId : null,
           upload_filename: sourceMode === 'upload' ? uploadFilename : null,
+          translation_model: selectedTranslationModel,
         }),
       })
 
@@ -286,6 +306,40 @@ export default function App() {
                   }}
                 />
               )}
+
+              {availableModels.transcription.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setModelsOpen(o => !o)}
+                    className="flex items-center justify-between w-full text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Paramètres des modèles
+                    </span>
+                    <svg
+                      className={`w-4 h-4 transition-transform ${modelsOpen ? 'rotate-180' : ''}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {modelsOpen && (
+                    <ModelSelector
+                      transcriptionModels={availableModels.transcription}
+                      translationModels={availableModels.translation}
+                      selectedTranscription={selectedTranscriptionModel}
+                      selectedTranslation={selectedTranslationModel}
+                      onSelectTranscription={setSelectedTranscriptionModel}
+                      onSelectTranslation={setSelectedTranslationModel}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -346,6 +400,7 @@ export default function App() {
             videoInfo={videoInfo}
             range={range}
             onReset={handleReset}
+            translationModel={selectedTranslationModel}
           />
         )}
       </main>

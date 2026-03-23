@@ -6,14 +6,7 @@ import json
 from google import genai
 
 from utils.logger import get_logger
-from utils.models_config import (
-    GEMINI__TRANSLATION_MODEL,
-    GEMINI_ARTICLE_MODEL,
-    GEMINI_TRANSLATION_INPUT_COST_PER_M,
-    GEMINI_TRANSLATION_OUTPUT_COST_PER_M,
-    GEMINI_ARTICLE_INPUT_COST_PER_M,
-    GEMINI_ARTICLE_OUTPUT_COST_PER_M,
-)
+from utils.models_config import TRANSLATION_MODELS, DEFAULT_TRANSLATION_MODEL
 
 logger = get_logger(__name__)
 
@@ -77,10 +70,15 @@ async def _call_gemini(client, model: str, prompt: str) -> tuple[str, dict]:
 
 
 async def translate_segments(
-    segments: list[dict], arabic_text: str, include_timestamps: bool = True
+    segments: list[dict], arabic_text: str, include_timestamps: bool = True, model: str | None = None
 ) -> dict:
     """Translate Arabic segments/text to French using Gemini."""
-    logger.info(f"Starting translation with Gemini (timestamps: {include_timestamps})")
+    model = model or DEFAULT_TRANSLATION_MODEL
+    if model not in TRANSLATION_MODELS:
+        raise ValueError(f"Unknown translation model: {model}")
+    model_config = TRANSLATION_MODELS[model]
+
+    logger.info(f"Starting translation with Gemini model={model} (timestamps: {include_timestamps})")
     t0 = time.perf_counter()
 
     client = _get_client()
@@ -96,7 +94,7 @@ async def translate_segments(
         )
 
     translation_raw, translation_usage = await _call_gemini(
-        client, GEMINI__TRANSLATION_MODEL, translation_prompt
+        client, model, translation_prompt
     )
 
     if include_timestamps:
@@ -108,8 +106,8 @@ async def translate_segments(
 
     translation_cost = _gemini_cost(
         translation_usage,
-        GEMINI_TRANSLATION_INPUT_COST_PER_M,
-        GEMINI_TRANSLATION_OUTPUT_COST_PER_M,
+        model_config["input_cost_per_m"],
+        model_config["output_cost_per_m"],
     )
 
     elapsed = time.perf_counter() - t0
@@ -130,19 +128,24 @@ async def translate_segments(
     }
 
 
-async def generate_article(arabic_text: str) -> dict:
+async def generate_article(arabic_text: str, model: str | None = None) -> dict:
     """Generate a French article from Arabic text using Gemini."""
-    logger.info("Starting article generation with Gemini")
+    model = model or DEFAULT_TRANSLATION_MODEL
+    if model not in TRANSLATION_MODELS:
+        raise ValueError(f"Unknown translation model: {model}")
+    model_config = TRANSLATION_MODELS[model]
+
+    logger.info(f"Starting article generation with Gemini model={model}")
     t0 = time.perf_counter()
 
     client = _get_client()
     article_prompt = ARTICLE_PROMPT_TEMPLATE.format(arabic_text=arabic_text)
     article_raw, article_usage = await _call_gemini(
-        client, GEMINI_ARTICLE_MODEL, article_prompt
+        client, model, article_prompt
     )
 
     article_cost = _gemini_cost(
-        article_usage, GEMINI_ARTICLE_INPUT_COST_PER_M, GEMINI_ARTICLE_OUTPUT_COST_PER_M
+        article_usage, model_config["input_cost_per_m"], model_config["output_cost_per_m"]
     )
 
     elapsed = time.perf_counter() - t0

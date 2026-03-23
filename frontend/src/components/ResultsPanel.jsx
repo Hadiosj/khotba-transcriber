@@ -379,7 +379,7 @@ function SubtitleEditor({ analysisId, videoTitle }) {
   )
 }
 
-export default function ResultsPanel({ results, videoInfo, range, onReset }) {
+export default function ResultsPanel({ results, videoInfo, range, onReset, translationModel }) {
   const [arabicSegs, setArabicSegs] = useState(() => results.arabicSegments || [])
   const [frenchSegs, setFrenchSegs] = useState(() => results.frenchSegments || [])
   const [arabicText, setArabicText] = useState(() => results.arabicText || '')
@@ -461,6 +461,7 @@ export default function ResultsPanel({ results, videoInfo, range, onReset }) {
         body: JSON.stringify({
           arabic_text: sourceText,
           analysis_id: results.analysisId,
+          translation_model: translationModel,
         }),
       })
       if (!res.ok) {

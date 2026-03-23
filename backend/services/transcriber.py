@@ -3,7 +3,7 @@ import time
 
 from groq import Groq
 from utils.logger import get_logger
-from utils.models_config import GROQ_TRANSCRIPTION_MODEL
+from utils.models_config import TRANSCRIPTION_MODELS, DEFAULT_TRANSCRIPTION_MODEL
 
 logger = get_logger(__name__)
 
@@ -19,15 +19,19 @@ _MIME_TYPES = {
 }
 
 
-def transcribe_audio(audio_path: str, include_timestamps: bool = True) -> dict:
+def transcribe_audio(audio_path: str, include_timestamps: bool = True, model: str | None = None) -> dict:
     """Send an audio file to Groq Whisper and return segments + full text.
     Accepts m4a, webm, mp3, ogg, flac, wav — no FFmpeg conversion needed.
     When include_timestamps is False, returns only the full text with no segments."""
+    model = model or DEFAULT_TRANSCRIPTION_MODEL
+    if model not in TRANSCRIPTION_MODELS:
+        raise ValueError(f"Unknown transcription model: {model}")
+
     ext = audio_path.rsplit(".", 1)[-1].lower() if "." in audio_path else "m4a"
     mime = _MIME_TYPES.get(ext, "audio/mp4")
     filename = f"audio.{ext}"
 
-    logger.info(f"Starting transcription with Groq Whisper (format: {ext}, timestamps: {include_timestamps})")
+    logger.info(f"Starting transcription with Groq Whisper model={model} (format: {ext}, timestamps: {include_timestamps})")
     t0 = time.perf_counter()
 
     api_key = os.getenv("GROQ_API_KEY")
@@ -39,7 +43,7 @@ def transcribe_audio(audio_path: str, include_timestamps: bool = True) -> dict:
     with open(audio_path, "rb") as audio_file:
         response = client.audio.transcriptions.create(
             file=(filename, audio_file, mime),
-            model=GROQ_TRANSCRIPTION_MODEL,
+            model=model,
             language="ar",
             response_format="verbose_json" if include_timestamps else "json",
         )
