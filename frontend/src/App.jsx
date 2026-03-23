@@ -69,7 +69,7 @@ export default function App() {
           setSelectedTranslationModel(defaultModel.id)
         }
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   async function handleTranscribeAndTranslate() {
@@ -256,7 +256,7 @@ export default function App() {
                     ${sourceMode === 'youtube' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0C.488 3.45.029 5.804 0 12c.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0C23.512 20.55 23.971 18.196 24 12c-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/>
+                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0C.488 3.45.029 5.804 0 12c.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0C23.512 20.55 23.971 18.196 24 12c-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z" />
                   </svg>
                   URL YouTube
                 </button>
@@ -271,17 +271,6 @@ export default function App() {
                   Téléverser
                 </button>
               </div>
-
-              {sourceMode === 'youtube' && (
-                <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-                  <svg className="mt-0.5 w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                  </svg>
-                  <span>
-                    <strong>Attention :</strong> YouTube peut bloquer les requêtes depuis les serveurs déployés. Cette fonctionnalité fonctionne uniquement si l'outil tourne en local. Préférez l'option <strong>Téléverser</strong> si vous utilisez la version en ligne.
-                  </span>
-                </div>
-              )}
 
               {sourceMode === 'youtube' ? (
                 <UrlInput
