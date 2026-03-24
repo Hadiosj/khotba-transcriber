@@ -3,6 +3,7 @@ import time
 
 from utils.file_manager import tmp_path, safe_remove
 from utils.logger import get_logger
+from services.downloader import _proxy_args, _PLAYER_CLIENTS, _ffmpeg_proxy_args
 
 logger = get_logger(__name__)
 
@@ -87,6 +88,8 @@ def burn_subtitles(
                 "yt-dlp",
                 "--no-playlist",
                 "-f", "best[ext=mp4]/best",
+                "--extractor-args", f"youtube:player_client={_PLAYER_CLIENTS}",
+                *_proxy_args(),
                 "--get-url",
                 youtube_url,
             ]
@@ -103,10 +106,13 @@ def burn_subtitles(
             if not stream_urls:
                 raise RuntimeError("yt-dlp returned empty stream URL")
 
+            ffmpeg_proxy = _ffmpeg_proxy_args()
             if len(stream_urls) == 2:
                 dl_cmd = [
                     "ffmpeg",
+                    *ffmpeg_proxy,
                     "-ss", str(start), "-to", str(end), "-i", stream_urls[0],
+                    *ffmpeg_proxy,
                     "-ss", str(start), "-to", str(end), "-i", stream_urls[1],
                     "-c", "copy",
                     "-map", "0:v:0", "-map", "1:a:0",
@@ -116,6 +122,7 @@ def burn_subtitles(
             else:
                 dl_cmd = [
                     "ffmpeg",
+                    *ffmpeg_proxy,
                     "-ss", str(start),
                     "-to", str(end),
                     "-i", stream_urls[0],
