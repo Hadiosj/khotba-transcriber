@@ -54,7 +54,9 @@ def _get_stream_url_invidious(youtube_url: str) -> str:
     for instance in INVIDIOUS_INSTANCES:
         try:
             logger.info(f"Trying Invidious instance: {instance}")
-            r = httpx.get(f"{instance}/api/v1/videos/{video_id}", timeout=10, proxies=proxies)
+            r = httpx.get(
+                f"{instance}/api/v1/videos/{video_id}", timeout=10, proxies=proxies
+            )
             r.raise_for_status()
             data = r.json()
             formats = data.get("adaptiveFormats", [])
@@ -115,7 +117,11 @@ def get_video_info(url: str) -> dict:
             video_id = _extract_video_id(url)
             for instance in INVIDIOUS_INSTANCES:
                 try:
-                    r = httpx.get(f"{instance}/api/v1/videos/{video_id}", timeout=10, proxies=_httpx_proxies())
+                    r = httpx.get(
+                        f"{instance}/api/v1/videos/{video_id}",
+                        timeout=10,
+                        proxies=_httpx_proxies(),
+                    )
                     r.raise_for_status()
                     data = r.json()
                     elapsed = time.perf_counter() - t0
@@ -159,7 +165,11 @@ def _best_ffmpeg_error(stderr: str) -> str:
     """Return the most informative non-repetition line from FFmpeg stderr."""
     lines = [l.strip() for l in stderr.strip().splitlines() if l.strip()]
     meaningful = [l for l in lines if not l.lower().startswith("last message repeated")]
-    return meaningful[-1] if meaningful else (lines[-1] if lines else "Unknown FFmpeg error")
+    return (
+        meaningful[-1]
+        if meaningful
+        else (lines[-1] if lines else "Unknown FFmpeg error")
+    )
 
 
 def extract_audio_from_local(file_path: str, start: int, end: int) -> str:
@@ -170,12 +180,17 @@ def extract_audio_from_local(file_path: str, start: int, end: int) -> str:
     out_path = f"{tmp_path()}.m4a"
     ffmpeg_cmd = [
         "ffmpeg",
-        "-ss", str(start),
-        "-to", str(end),
-        "-i", file_path,
+        "-ss",
+        str(start),
+        "-to",
+        str(end),
+        "-i",
+        file_path,
         "-vn",
-        "-c:a", "copy",
-        "-y", out_path,
+        "-c:a",
+        "copy",
+        "-y",
+        out_path,
     ]
     result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=900)
 
@@ -184,14 +199,21 @@ def extract_audio_from_local(file_path: str, start: int, end: int) -> str:
         out_path2 = f"{tmp_path()}.m4a"
         ffmpeg_cmd2 = [
             "ffmpeg",
-            "-ss", str(start),
-            "-to", str(end),
-            "-i", file_path,
+            "-ss",
+            str(start),
+            "-to",
+            str(end),
+            "-i",
+            file_path,
             "-vn",
-            "-c:a", "aac",
-            "-y", out_path2,
+            "-c:a",
+            "aac",
+            "-y",
+            out_path2,
         ]
-        result2 = subprocess.run(ffmpeg_cmd2, capture_output=True, text=True, timeout=900)
+        result2 = subprocess.run(
+            ffmpeg_cmd2, capture_output=True, text=True, timeout=900
+        )
         if result2.returncode != 0:
             err = _best_ffmpeg_error(result2.stderr)
             raise RuntimeError(f"FFmpeg error: {err}")
@@ -202,52 +224,85 @@ def extract_audio_from_local(file_path: str, start: int, end: int) -> str:
     return out_path
 
 
+def _ffmpeg_proxy_args() -> list:
+    """Pass the same proxy used by yt-dlp to FFmpeg, so the IP matches."""
+    proxy = os.getenv("WEBSHARE_PROXY_URL")
+    if not proxy:
+        return []
+    return ["-http_proxy", proxy]
+
+
 def extract_audio(url: str, start: int, end: int) -> str:
-    """Extract audio segment using yt-dlp or Invidious (get stream URL) + FFmpeg."""
     logger.info(f"Extracting audio: start={start}s end={end}s")
     t0 = time.perf_counter()
 
     stream_url = None
+    used_ytdlp = False
     try:
         stream_url = _get_stream_url_ytdlp(url)
         logger.info("Using yt-dlp stream URL")
+        used_ytdlp = True
     except RuntimeError as e:
         logger.warning(f"yt-dlp failed ({e}), falling back to Invidious")
         stream_url = _get_stream_url_invidious(url)
         logger.info("Using Invidious stream URL")
 
     common_headers = [
-        "-headers", "User-Agent: Mozilla/5.0\r\nReferer: https://www.youtube.com/\r\n",
+        "-headers",
+        "User-Agent: Mozilla/5.0\r\nReferer: https://www.youtube.com/\r\n",
     ]
+    # Only inject proxy into FFmpeg if yt-dlp was used — the stream URL is
+    # IP-locked to the proxy IP that fetched it.
+    proxy_args = _ffmpeg_proxy_args() if used_ytdlp else []
 
-    # First attempt: stream-copy (fast, works for AAC streams)
     out_path = f"{tmp_path()}.m4a"
     ffmpeg_result = subprocess.run(
         [
             "ffmpeg",
-            "-ss", str(start), "-to", str(end),
+            "-ss",
+            str(start),
+            "-to",
+            str(end),
+            *proxy_args,
             *common_headers,
-            "-i", stream_url,
-            "-vn", "-c", "copy",
-            "-y", out_path,
+            "-i",
+            stream_url,
+            "-vn",
+            "-c",
+            "copy",
+            "-y",
+            out_path,
         ],
-        capture_output=True, text=True, timeout=900,
+        capture_output=True,
+        text=True,
+        timeout=900,
     )
 
     if ffmpeg_result.returncode != 0:
-        # Stream-copy failed (e.g. Opus/WebM can't go into .m4a) — re-encode to AAC
-        logger.warning(f"Stream-copy failed, retrying with AAC re-encode: {_best_ffmpeg_error(ffmpeg_result.stderr)}")
+        logger.warning(
+            f"Stream-copy failed, retrying with AAC re-encode: {_best_ffmpeg_error(ffmpeg_result.stderr)}"
+        )
         out_path2 = f"{tmp_path()}.m4a"
         ffmpeg_result2 = subprocess.run(
             [
                 "ffmpeg",
-                "-ss", str(start), "-to", str(end),
+                "-ss",
+                str(start),
+                "-to",
+                str(end),
+                *proxy_args,
                 *common_headers,
-                "-i", stream_url,
-                "-vn", "-c:a", "aac",
-                "-y", out_path2,
+                "-i",
+                stream_url,
+                "-vn",
+                "-c:a",
+                "aac",
+                "-y",
+                out_path2,
             ],
-            capture_output=True, text=True, timeout=900,
+            capture_output=True,
+            text=True,
+            timeout=900,
         )
         if ffmpeg_result2.returncode != 0:
             err = _best_ffmpeg_error(ffmpeg_result2.stderr)
