@@ -3,6 +3,7 @@ import json
 import os
 import re
 import time
+import random
 
 import httpx
 
@@ -232,58 +233,59 @@ def _ffmpeg_proxy_args() -> list:
     return ["-http_proxy", proxy]
 
 
+def _rotate_proxy_session() -> None:
+    """Change the session ID in the proxy URL env var to get a fresh residential peer."""
+    proxy = os.getenv("WEBSHARE_PROXY_URL")
+    if not proxy:
+        return
+    # Replace the session number suffix in the username with a new random one
+    # Matches patterns like: username-12345:password  or  username:password (no session)
+    new_id = random.randint(10000, 99999)
+    new_proxy = re.sub(
+        r"(://[^-:]+)(-\d+)?(:)",
+        lambda m: f"{m.group(1)}-{new_id}{m.group(3)}",
+        proxy,
+    )
+    os.environ["WEBSHARE_PROXY_URL"] = new_proxy
+    logger.info(f"Rotated proxy session ID to {new_id}")
+
+
 def extract_audio(url: str, start: int, end: int) -> str:
     logger.info(f"Extracting audio: start={start}s end={end}s")
     t0 = time.perf_counter()
 
     stream_url = None
     used_ytdlp = False
-    try:
-        stream_url = _get_stream_url_ytdlp(url)
-        logger.info("Using yt-dlp stream URL")
-        used_ytdlp = True
-    except RuntimeError as e:
-        logger.warning(f"yt-dlp failed ({e}), falling back to Invidious")
-        stream_url = _get_stream_url_invidious(url)
-        logger.info("Using Invidious stream URL")
+    last_error = None
 
-    common_headers = [
-        "-headers",
-        "User-Agent: Mozilla/5.0\r\nReferer: https://www.youtube.com/\r\n",
-    ]
-    # Only inject proxy into FFmpeg if yt-dlp was used — the stream URL is
-    # IP-locked to the proxy IP that fetched it.
-    proxy_args = _ffmpeg_proxy_args() if used_ytdlp else []
+    # Retry up to 3 times with a fresh session ID each attempt
+    for attempt in range(3):
+        if attempt > 0:
+            logger.warning(f"Retrying audio extraction (attempt {attempt + 1}/3)...")
+            _rotate_proxy_session()  # force a new residential peer
 
-    out_path = f"{tmp_path()}.m4a"
-    ffmpeg_result = subprocess.run(
-        [
-            "ffmpeg",
-            "-ss",
-            str(start),
-            "-to",
-            str(end),
-            *proxy_args,
-            *common_headers,
-            "-i",
-            stream_url,
-            "-vn",
-            "-c",
-            "copy",
-            "-y",
-            out_path,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=900,
-    )
+        try:
+            stream_url = _get_stream_url_ytdlp(url)
+            logger.info("Using yt-dlp stream URL")
+            used_ytdlp = True
+        except RuntimeError as e:
+            logger.warning(f"yt-dlp failed ({e}), falling back to Invidious")
+            try:
+                stream_url = _get_stream_url_invidious(url)
+                logger.info("Using Invidious stream URL")
+                used_ytdlp = False
+            except RuntimeError as e2:
+                last_error = e2
+                continue
 
-    if ffmpeg_result.returncode != 0:
-        logger.warning(
-            f"Stream-copy failed, retrying with AAC re-encode: {_best_ffmpeg_error(ffmpeg_result.stderr)}"
-        )
-        out_path2 = f"{tmp_path()}.m4a"
-        ffmpeg_result2 = subprocess.run(
+        common_headers = [
+            "-headers",
+            "User-Agent: Mozilla/5.0\r\nReferer: https://www.youtube.com/\r\n",
+        ]
+        proxy_args = _ffmpeg_proxy_args() if used_ytdlp else []
+
+        out_path = f"{tmp_path()}.m4a"
+        ffmpeg_result = subprocess.run(
             [
                 "ffmpeg",
                 "-ss",
@@ -295,22 +297,52 @@ def extract_audio(url: str, start: int, end: int) -> str:
                 "-i",
                 stream_url,
                 "-vn",
-                "-c:a",
-                "aac",
+                "-c",
+                "copy",
                 "-y",
-                out_path2,
+                out_path,
             ],
             capture_output=True,
             text=True,
             timeout=900,
         )
-        if ffmpeg_result2.returncode != 0:
-            err = _best_ffmpeg_error(ffmpeg_result2.stderr)
-            logger.error(f"FFmpeg extraction failed: {err}")
-            logger.debug(f"FFmpeg full stderr:\n{ffmpeg_result2.stderr}")
-            raise RuntimeError(f"FFmpeg error: {err}")
-        out_path = out_path2
 
-    elapsed = time.perf_counter() - t0
-    logger.info(f"Audio extracted (m4a) in {elapsed:.2f}s")
-    return out_path
+        if ffmpeg_result.returncode != 0:
+            warn_msg = _best_ffmpeg_error(ffmpeg_result.stderr)
+            logger.warning(
+                f"Stream-copy failed, retrying with AAC re-encode: {warn_msg}"
+            )
+            out_path2 = f"{tmp_path()}.m4a"
+            ffmpeg_result2 = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-ss",
+                    str(start),
+                    "-to",
+                    str(end),
+                    *proxy_args,
+                    *common_headers,
+                    "-i",
+                    stream_url,
+                    "-vn",
+                    "-c:a",
+                    "aac",
+                    "-y",
+                    out_path2,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=900,
+            )
+            if ffmpeg_result2.returncode != 0:
+                err = _best_ffmpeg_error(ffmpeg_result2.stderr)
+                logger.warning(f"FFmpeg attempt {attempt + 1} failed: {err}")
+                last_error = RuntimeError(f"FFmpeg error: {err}")
+                continue  # retry with new session
+            out_path = out_path2
+
+        elapsed = time.perf_counter() - t0
+        logger.info(f"Audio extracted (m4a) in {elapsed:.2f}s")
+        return out_path
+
+    raise last_error or RuntimeError("Audio extraction failed after 3 attempts")
