@@ -1,7 +1,42 @@
 # Arabic Video Transcriber
 
-A full-stack web application for Arabic video transcription and translation. Paste a YouTube URL or upload a local video file, select a time range, and get a full Arabic transcription, French translation, download the original video with french subtitles, and a structured French article — all powered by Groq Whisper and Google Gemini. No uploaded files are stored, videos are deleted automatically when the analysis is done.
+> **Status: Currently Disabled on `sudev.ai` (Archived for future revamp)**
+> This app was previously deployed at `https://sudev.ai/transcriber`. It has been temporarily stopped on the production server to conserve VPS resources and clean up routing until revamped.
 
+A full-stack web application for Arabic video transcription and translation. Paste a YouTube URL or upload a local video file, select a time range, and get a full Arabic transcription, French translation, downloadable video with French subtitles, and a structured French article — powered by Groq Whisper and Google Gemini.
+
+---
+
+## Current State & Known Issues
+
+1. **YouTube Scraper / Proxying**:
+   - YouTube blocks requests originating from datacenter / VPS IP addresses (such as Hetzner).
+   - The app previously used a Webshare residential proxy pool (`WEBSHARE_PROXY_URL`) to circumvent this. The proxy subscription was discontinued, so **YouTube downloads currently fail on the server** (local execution may still work).
+2. **Outdated AI Models**:
+   - Model definitions in `backend/utils/models_config.py` use older preview tags and need updating to current stable model endpoints.
+3. **Root `/api` Routing Conflict**:
+   - The frontend and backend were hardcoded to route API traffic to `/api/*` at the domain root rather than `/transcriber/api/*`.
+4. **CI/CD Branch Mismatch**:
+   - `.github/workflows/deploy.yml` references branch `main`, while the repository's primary branch is `master`.
+
+---
+
+## Roadmap to Revive & Modernize
+
+When picking this project back up:
+
+- [ ] **Drop YouTube Proxy Dependency**: Shift focus to **direct drag-and-drop video/audio upload** (and/or client-side audio extraction). Eliminating datacenter yt-dlp dependencies makes the app 100% reliable and zero-cost to host.
+- [ ] **Update AI Models**: Update `models_config.py` to use:
+  - Transcription: Groq `whisper-large-v3-turbo` (fast, low-cost).
+  - Translation & Summarization: Current stable Google Gemini Flash models.
+- [ ] **Nest API Prefix**:
+  - Update FastAPI router prefixes in `backend/main.py` to `/transcriber/api`.
+  - Update Nginx config and frontend `VITE_API_BASE_URL` to match.
+- [ ] **Add Basic Rate Limiting / Protection**: Guard against unauthenticated users exhausting Groq/Gemini API quotas.
+- [ ] **Fix CI/CD**: Standardize git branch to `main` and verify GitHub Actions SSH deploy secrets.
+- [ ] **Re-enable in Caddy**: Re-add the reverse proxy block in `/etc/caddy/Caddyfile` for `localhost:8080`.
+
+---
 
 ## API Keys
 
@@ -14,56 +49,6 @@ A full-stack web application for Arabic video transcription and translation. Pas
 1. Go to [https://aistudio.google.com](https://aistudio.google.com)
 2. Click **Get API Key** → **Create API Key**
 
-
-## Run with Docker (no code needed)
-
-**1. Create a project folder with this structure:**
-```
-my-folder/
-├── docker-compose.yml
-└── backend/
-    └── .env
-```
-
-**2. `docker-compose.yml`:**
-```yaml
-services:
-  backend:
-    image: hadiosj/khotba-backend:latest
-    ports:
-      - "8000:8000"
-    env_file:
-      - backend/.env
-    volumes:
-      - ./backend/logs:/app/logs
-      - ./backend/analyses.db:/app/analyses.db
-    restart: unless-stopped
-
-  frontend:
-    image: hadiosj/khotba-frontend:latest
-    ports:
-      - "5173:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-```
-
-**3. `backend/.env`:**
-```
-GROQ_API_KEY=gsk_...
-GEMINI_API_KEY=...
-DATABASE_URL=sqlite:///./analyses.db
-ALLOWED_ORIGIN=http://localhost:5173
-WEBSHARE_PROXY_URL=http://user:password@p.webshare.io:80  # optional, see below
-```
-
-**4. Run:**
-```bash
-docker compose up
-```
-
-Open `http://localhost:5173`.
-
 ---
 
 ## Local Setup (Manual, from source)
@@ -75,7 +60,7 @@ cd khotba-transcriber
 cp backend/.env.example backend/.env
 ```
 Open `backend/.env` and set your two API keys:
-```
+```env
 GROQ_API_KEY=gsk_...
 GEMINI_API_KEY=...
 ```
@@ -109,7 +94,6 @@ Open `http://localhost:5173`. Backend API docs at `http://localhost:8000/docs`.
 
 ---
 
-
 ## Viewing Logs
 
 ```bash
@@ -119,12 +103,3 @@ tail -f backend/logs/app.log
 # Docker
 docker compose logs -f backend
 ```
-
-
-## Known Limitations
-
-### YouTube on deployed servers
-
-YouTube actively blocks requests from datacenter/server IPs, so the YouTube URL feature won't work on a hosted deployment. It works fine when running locally.
-
-**Fix:** use a residential proxy (e.g. [Webshare](https://www.webshare.io) rotating residential proxies). Set `WEBSHARE_PROXY_URL` in your `.env` and all yt-dlp requests will route through it. Leave the variable unset when running locally.
